@@ -13,6 +13,97 @@ export default function handler(req, res) {
       passportControl: 10,
       gateWalk: 14,
       riskLevel: "normal"
+    },
+
+    OPO: {
+      name: "Porto Francisco Sá Carneiro",
+      country: "Portugal",
+      sourceProfile: "Home2Flight Internal Profile — OPO",
+      confidence: "Média",
+      score: 70,
+      security: 16,
+      bagDrop: 10,
+      passportControl: 8,
+      gateWalk: 12,
+      riskLevel: "normal"
+    },
+
+    AMS: {
+      name: "Amsterdam Schiphol",
+      country: "Netherlands",
+      sourceProfile: "Home2Flight Official-ready Profile — AMS",
+      confidence: "Média-alta",
+      score: 82,
+      security: 22,
+      bagDrop: 14,
+      passportControl: 12,
+      gateWalk: 18,
+      riskLevel: "normal"
+    },
+
+    LHR: {
+      name: "London Heathrow",
+      country: "United Kingdom",
+      sourceProfile: "Home2Flight Official-ready Profile — LHR",
+      confidence: "Média",
+      score: 78,
+      security: 28,
+      bagDrop: 16,
+      passportControl: 18,
+      gateWalk: 22,
+      riskLevel: "medium"
+    },
+
+    MAD: {
+      name: "Madrid-Barajas",
+      country: "Spain",
+      sourceProfile: "Home2Flight Internal Profile — MAD",
+      confidence: "Média-baixa",
+      score: 68,
+      security: 24,
+      bagDrop: 14,
+      passportControl: 16,
+      gateWalk: 20,
+      riskLevel: "medium"
+    },
+
+    BCN: {
+      name: "Barcelona El Prat",
+      country: "Spain",
+      sourceProfile: "Home2Flight Internal Profile — BCN",
+      confidence: "Média-baixa",
+      score: 67,
+      security: 22,
+      bagDrop: 14,
+      passportControl: 15,
+      gateWalk: 18,
+      riskLevel: "medium"
+    },
+
+    CDG: {
+      name: "Paris Charles de Gaulle",
+      country: "France",
+      sourceProfile: "Home2Flight Internal Profile — CDG",
+      confidence: "Média-baixa",
+      score: 64,
+      security: 32,
+      bagDrop: 18,
+      passportControl: 20,
+      gateWalk: 28,
+      riskLevel: "high"
+    },
+
+    DXB: {
+      name: "Dubai International",
+      country: "United Arab Emirates",
+      sourceProfile: "Home2Flight Internal Profile — DXB",
+      confidence: "Média",
+      score: 74,
+      security: 26,
+      bagDrop: 18,
+      passportControl: 18,
+      gateWalk: 26,
+      riskLevel: "medium"
     }
   };
 
@@ -96,7 +187,7 @@ export default function handler(req, res) {
 
     metadata: {
       engine: "Home2Flight Airport Intelligence Engine",
-      version: "0.3.0"
+      version: "0.4.0"
     }
   });
 }
