@@ -71,8 +71,18 @@ export default function handler(req, res) {
     airportProfile.passport +
     airportProfile.gateWalk;
 
+  let baseBuffer = 90;
+
+  if (flight.status === "delayed") {
+    baseBuffer = 75;
+  }
+
+  if (airportProfile.reliability < 70) {
+    baseBuffer += 30;
+  }
+
   const recommendedArrivalMinutes =
-    totalAirportTime + 90;
+    totalAirportTime + baseBuffer;
 
   res.status(200).json({
     flight: {
@@ -107,13 +117,27 @@ export default function handler(req, res) {
 
     reliability: {
       score: airportProfile.reliability,
-      confidence: "Média",
-      liveData: false
+
+      confidence:
+        airportProfile.reliability >= 80
+          ? "Alta"
+          : airportProfile.reliability >= 70
+          ? "Média"
+          : "Média-baixa",
+
+      liveData: false,
+
+      riskLevel:
+        airportProfile.reliability >= 80
+          ? "low"
+          : airportProfile.reliability >= 70
+          ? "normal"
+          : "high"
     },
 
     metadata: {
       engine: "Home2Flight Timeline Engine",
-      version: "0.1.0"
+      version: "0.2.0"
     }
   });
 }
