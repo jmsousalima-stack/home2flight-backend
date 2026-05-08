@@ -1,47 +1,91 @@
 export default function handler(req, res) {
-
   const airport = req.query.airport || "LIS";
 
-  const data = {
-    airport,
+  const profiles = {
+    LIS: {
+      name: "Lisboa Humberto Delgado",
+      country: "Portugal",
+      sourceProfile: "Home2Flight Internal Profile — LIS",
+      confidence: "Média",
+      score: 72,
+      security: 18,
+      bagDrop: 12,
+      passportControl: 10,
+      gateWalk: 14,
+      riskLevel: "normal"
+    }
+  };
+
+  const profile = profiles[airport] || profiles.LIS;
+
+  res.status(200).json({
+    airport: {
+      code: airport,
+      name: profile.name,
+      country: profile.country
+    },
 
     reliability: {
-      score: 72,
-      confidence: "Média",
-      source: "Home2Flight Internal Engine",
-      lastUpdated: "static-profile"
+      score: profile.score,
+      confidence: profile.confidence,
+      riskLevel: profile.riskLevel,
+      confidenceReason:
+        "Tempo estimado por perfil interno Home2Flight. Ainda sem integração direta com dados oficiais em tempo real.",
+      source: profile.sourceProfile,
+      freshness: "static-profile"
     },
 
     timings: {
       security: {
         status: "estimated",
-        minutes: 18
+        minutes: profile.security,
+        source: profile.sourceProfile
       },
-
       bagDrop: {
         status: "estimated",
-        minutes: 12
+        minutes: profile.bagDrop,
+        source: profile.sourceProfile
       },
-
       passportControl: {
         status: "estimated",
-        minutes: 10
+        minutes: profile.passportControl,
+        source: profile.sourceProfile
       },
-
       gateWalk: {
         status: "estimated",
-        minutes: 14
+        minutes: profile.gateWalk,
+        source: profile.sourceProfile
       }
+    },
+
+    officialSources: {
+      airportLiveData: false,
+      securityWaitTimes: false,
+      airlineBagDrop: false,
+      borderControl: false,
+      gateWalkingTime: false
+    },
+
+    sourceBreakdown: {
+      flightData: "future-flight-api",
+      routeData: "future-maps-api",
+      airportProfile: profile.sourceProfile,
+      alerts: "future-alerts-engine",
+      communityReports: "future-community-layer"
     },
 
     alerts: [],
 
     limitations: [
-      "No live airport data yet",
-      "No airline-specific bag drop data yet",
-      "No real border control integration yet"
-    ]
-  };
+      "Ainda sem dados oficiais em tempo real deste aeroporto",
+      "Ainda sem tempos por companhia aérea",
+      "Ainda sem leitura automática de greves, notícias ou incidentes",
+      "Ainda sem reports da comunidade"
+    ],
 
-  res.status(200).json(data);
+    metadata: {
+      engine: "Home2Flight Airport Intelligence Engine",
+      version: "0.2.0"
+    }
+  });
 }
