@@ -14,7 +14,9 @@ export default async function handler(req, res) {
 
   const flightData = {
     number: flight,
+
     airline: "Air France",
+
     route: {
       airline: "Air France",
 
@@ -42,9 +44,13 @@ export default async function handler(req, res) {
 
   const userContext = {
     bags: bags === "true",
+
     kids: kids === "true",
+
     checkedIn: checkedIn === "true",
+
     flightType,
+
     transport,
   };
 
@@ -56,8 +62,11 @@ export default async function handler(req, res) {
 
   const airportProcessMinutes = {
     security: 36,
+
     bagDrop: 26,
+
     passport: 30,
+
     gateWalk: 35,
   };
 
@@ -74,21 +83,31 @@ export default async function handler(req, res) {
   const operationalSignals = [
     {
       type: "airport_complexity",
+
       severity: "high",
+
       title:
         "Aeroporto complexo com maior variabilidade operacional",
+
       impactMinutes: 20,
+
       source: "Home2Flight Operational Profile",
+
       verified: true,
     },
 
     {
       type: "connection_pressure",
+
       severity: "medium",
+
       title:
         "Maior risco de filas e deslocações internas longas",
+
       impactMinutes: 12,
+
       source: "Home2Flight Airport Profile",
+
       verified: true,
     },
   ];
@@ -105,24 +124,38 @@ export default async function handler(req, res) {
   const communityReports = [
     {
       type: "terminal_movement",
+
       severity: "medium",
+
       title:
         "Deslocações internas demoradas reportadas",
+
       reportedMinutesAgo: 35,
+
       confidence: "medium",
+
       impactMinutes: 12,
+
       source: "community_report",
+
       verified: false,
     },
 
     {
       type: "security_queue",
+
       severity: "high",
+
       title: "Fila de segurança longa reportada",
+
       reportedMinutesAgo: 14,
+
       confidence: "medium",
+
       impactMinutes: 18,
+
       source: "community_report",
+
       verified: false,
     },
   ];
@@ -177,7 +210,9 @@ export default async function handler(req, res) {
 
   reliabilityAdjustments.push({
     factor: "airport_risk",
+
     impact: -15,
+
     reason:
       "Aeroporto com maior complexidade operacional",
   });
@@ -186,7 +221,9 @@ export default async function handler(req, res) {
 
   reliabilityAdjustments.push({
     factor: "flight_status",
+
     impact: -5,
+
     reason: "Voo com atraso operacional",
   });
 
@@ -194,7 +231,9 @@ export default async function handler(req, res) {
 
   reliabilityAdjustments.push({
     factor: "live_data",
+
     impact: -10,
+
     reason:
       "Ainda sem integrações oficiais live",
   });
@@ -203,7 +242,9 @@ export default async function handler(req, res) {
 
   reliabilityAdjustments.push({
     factor: "alerts",
+
     impact: -10,
+
     reason:
       "Alertas operacionais relevantes ativos",
   });
@@ -212,7 +253,9 @@ export default async function handler(req, res) {
 
   reliabilityAdjustments.push({
     factor: "operational_intelligence",
+
     impact: -12,
+
     reason:
       "Sinais operacionais relevantes aumentam a incerteza",
   });
@@ -222,7 +265,9 @@ export default async function handler(req, res) {
 
     reliabilityAdjustments.push({
       factor: "kids",
+
       impact: -3,
+
       reason:
         "Viagem com crianças aumenta variabilidade",
     });
@@ -233,7 +278,9 @@ export default async function handler(req, res) {
 
     reliabilityAdjustments.push({
       factor: "transport",
+
       impact: -4,
+
       reason:
         "Dependência de transportes públicos",
     });
@@ -319,21 +366,27 @@ export default async function handler(req, res) {
 
   recommendations.push({
     type: "check_in",
+
     priority: "high",
+
     title:
       "Faz o check-in online antes de sair",
   });
 
   recommendations.push({
     type: "transport",
+
     priority: "high",
+
     title:
       "Evita dependência excessiva de transportes públicos",
   });
 
   recommendations.push({
     type: "airport_margin",
+
     priority: "critical",
+
     title:
       "Mantém margem adicional neste aeroporto",
   });
@@ -359,54 +412,138 @@ export default async function handler(req, res) {
   const timeline = [
     {
       step: "prepare_documents",
+
       title:
         "Preparar documentos e essenciais",
+
       recommendedTime: new Date(
         leaveHomeTime.getTime() - 90 * 60000
       ),
+
       category: "preparation",
     },
 
     {
       step: "online_checkin",
+
       title:
         "Confirmar check-in online",
+
       recommendedTime: new Date(
         leaveHomeTime.getTime() - 60 * 60000
       ),
+
       category: "flight",
     },
 
     {
       step: "leave_home",
+
       title: "Sair de casa",
+
       recommendedTime: leaveHomeTime,
+
       category: "transport",
     },
 
     {
       step: "arrive_airport",
+
       title: "Chegar ao aeroporto",
+
       recommendedTime: airportArrivalTime,
+
       category: "airport",
     },
 
     {
       step: "departure",
+
       title: "Partida do voo",
+
       recommendedTime: departureDate,
+
       category: "flight",
     },
   ];
+
+  // =========================
+  // UI SUMMARY
+  // =========================
+
+  let uiStatus = "warning";
+
+  if (reliabilityScore >= 70) {
+    uiStatus = "good";
+  } else if (reliabilityScore < 40) {
+    uiStatus = "critical";
+  }
+
+  let headline =
+    "Plano com margem operacional sensível";
+
+  let shortMessage =
+    "Recomendada atenção adicional ao trajeto e aeroporto.";
+
+  if (uiStatus === "good") {
+    headline =
+      "Plano estável e dentro da margem recomendada";
+
+    shortMessage =
+      "O plano apresenta boa margem operacional.";
+  }
+
+  if (uiStatus === "critical") {
+    headline =
+      "Plano operacionalmente frágil";
+
+    shortMessage =
+      "Existem vários fatores de risco ativos neste trajeto.";
+  }
+
+  const mainRiskFactors = reliabilityAdjustments
+    .filter((item) => item.impact <= -10)
+    .map((item) => item.reason);
+
+  const keyActions = recommendations.map(
+    (item) => item.title
+  );
 
   // =========================
   // FINAL RESPONSE
   // =========================
 
   res.status(200).json({
+    uiSummary: {
+      status: uiStatus,
+
+      headline,
+
+      shortMessage,
+
+      confidenceLabel:
+        confidenceLevel === "high"
+          ? "Confiança elevada"
+          : confidenceLevel === "medium"
+          ? "Confiança moderada"
+          : "Confiança reduzida",
+
+      reliabilityLabel:
+        reliabilityScore >= 70
+          ? "Fiável"
+          : reliabilityScore >= 45
+          ? "Sensível"
+          : "Frágil",
+
+      readinessLabel,
+
+      mainRiskFactors,
+
+      keyActions,
+    },
+
     decision: {
-      headline:
-        "Plano com margem operacional sensível",
+      headline,
 
       leaveHomeTime,
 
@@ -480,7 +617,7 @@ export default async function handler(req, res) {
       engine:
         "Home2Flight Unified Decision Engine",
 
-      version: "0.3.0",
+      version: "0.4.0",
     },
   });
 }
