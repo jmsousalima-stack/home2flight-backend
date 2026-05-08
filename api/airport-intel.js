@@ -18,6 +18,14 @@ export default function handler(req, res) {
 
   const profile = profiles[airport] || profiles.LIS;
 
+  const estimatedQuality = {
+    level: "estimated",
+    confidence: "medium",
+    live: false,
+    official: false,
+    community: false
+  };
+
   res.status(200).json({
     airport: {
       code: airport,
@@ -37,46 +45,25 @@ export default function handler(req, res) {
 
     timings: {
       security: {
-        status: dataQuality: {
-  level: "estimated",
-  confidence: "medium",
-  live: false,
-  official: false,
-  community: false
-},,
+        dataQuality: estimatedQuality,
         minutes: profile.security,
         source: profile.sourceProfile
       },
+
       bagDrop: {
-        status: dataQuality: {
-  level: "estimated",
-  confidence: "medium",
-  live: false,
-  official: false,
-  community: false
-},,
+        dataQuality: estimatedQuality,
         minutes: profile.bagDrop,
         source: profile.sourceProfile
       },
+
       passportControl: {
-        status: dataQuality: {
-  level: "estimated",
-  confidence: "medium",
-  live: false,
-  official: false,
-  community: false
-},,
+        dataQuality: estimatedQuality,
         minutes: profile.passportControl,
         source: profile.sourceProfile
       },
+
       gateWalk: {
-        status: dataQuality: {
-  level: "estimated",
-  confidence: "medium",
-  live: false,
-  official: false,
-  community: false
-},,
+        dataQuality: estimatedQuality,
         minutes: profile.gateWalk,
         source: profile.sourceProfile
       }
@@ -109,7 +96,7 @@ export default function handler(req, res) {
 
     metadata: {
       engine: "Home2Flight Airport Intelligence Engine",
-      version: "0.2.0"
+      version: "0.3.0"
     }
   });
 }
