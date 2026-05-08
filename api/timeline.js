@@ -99,6 +99,7 @@ export default function handler(req, res) {
   const transport = req.query.transport || "car";
 
   const flight = getFlight(flightNumber);
+
   const departureAirport = getAirportProfile(flight.from);
   const arrivalAirport = getAirportProfile(flight.to);
 
@@ -114,6 +115,7 @@ export default function handler(req, res) {
     bagDropMinutes += 8;
     adjustments.push({
       type: "bags",
+      area: "airport",
       impactMinutes: 8,
       reason: "Mala de porão aumenta margem de check-in/bag drop."
     });
@@ -124,6 +126,7 @@ export default function handler(req, res) {
     gateWalkMinutes += 5;
     adjustments.push({
       type: "kids",
+      area: "airport",
       impactMinutes: 11,
       reason: "Crianças aumentam margem de deslocação e controlo."
     });
@@ -133,62 +136,72 @@ export default function handler(req, res) {
     passportMinutes += 10;
     adjustments.push({
       type: "passport",
+      area: "airport",
       impactMinutes: 10,
       reason: "Voo com controlo de passaporte/fronteira."
     });
   }
 
-  let transportBuffer = 15;
+  let transportTimeMinutes = 35;
+  let transportBufferMinutes = 15;
 
   if (transport === "public") {
-    transportBuffer = 25;
+    transportTimeMinutes = 40;
+    transportBufferMinutes = 25;
   }
 
   if (transport === "uber") {
-    transportBuffer = 18;
+    transportTimeMinutes = 28;
+    transportBufferMinutes = 18;
   }
 
   if (transport === "car") {
-    transportBuffer = 15;
+    transportTimeMinutes = 30;
+    transportBufferMinutes = 15;
   }
 
   adjustments.push({
     type: "transport",
-    impactMinutes: transportBuffer,
+    area: "transport",
+    impactMinutes: transportBufferMinutes,
     reason: `Margem dinâmica associada ao transporte: ${transport}.`
   });
 
-  let baseBuffer = 75;
+  let baseSafetyBufferMinutes = 75;
 
   if (flight.status === "delayed") {
-    baseBuffer = 60;
+    baseSafetyBufferMinutes = 60;
     adjustments.push({
       type: "flight_status",
+      area: "flight",
       impactMinutes: -15,
-      reason: "Voo atrasado reduz ligeiramente a necessidade de antecedência."
+      reason: "Voo atrasado reduz ligeiramente a antecedência recomendada."
     });
   }
 
   if (departureAirport.reliability < 70) {
-    baseBuffer += 30;
+    baseSafetyBufferMinutes += 30;
     adjustments.push({
       type: "low_reliability",
+      area: "reliability",
       impactMinutes: 30,
       reason: "Aeroporto com menor fiabilidade exige margem adicional."
     });
   }
 
-  const totalAirportProcessMinutes =
+  const airportProcessMinutes =
     securityMinutes +
     bagDropMinutes +
     passportMinutes +
     gateWalkMinutes;
 
   const airportArrivalRecommendedMinutesBeforeDeparture =
-    totalAirportProcessMinutes + baseBuffer;
+    airportProcessMinutes + baseSafetyBufferMinutes;
 
   const leaveHomeRecommendedMinutesBeforeDeparture =
-    airportArrivalRecommendedMinutesBeforeDeparture + transportBuffer;
+    airportArrivalRecommendedMinutesBeforeDeparture +
+    transportTimeMinutes +
+    transportBufferMinutes;
 
   res.status(200).json({
     flight: {
@@ -221,19 +234,32 @@ export default function handler(req, res) {
       scheduled: flight.departure
     },
 
-    airportProfile: {
-      securityMinutes,
-      bagDropMinutes,
-      passportMinutes,
-      gateWalkMinutes,
-      totalAirportProcessMinutes
+    timingBreakdown: {
+      airportProcess: {
+        totalMinutes: airportProcessMinutes,
+        securityMinutes,
+        bagDropMinutes,
+        passportMinutes,
+        gateWalkMinutes
+      },
+
+      transport: {
+        mode: transport,
+        estimatedTravelMinutes: transportTimeMinutes,
+        bufferMinutes: transportBufferMinutes,
+        totalMinutes: transportTimeMinutes + transportBufferMinutes
+      },
+
+      safetyBuffer: {
+        minutes: baseSafetyBufferMinutes
+      }
     },
 
     recommendation: {
       airportArrivalRecommendedMinutesBeforeDeparture,
       leaveHomeRecommendedMinutesBeforeDeparture,
       recommendationReason:
-        "Estimativa baseada em voo, aeroporto de partida, contexto do utilizador e margens dinâmicas."
+        "Estimativa separada por processo de aeroporto, transporte e margem de segurança."
     },
 
     reliability: {
@@ -255,7 +281,7 @@ export default function handler(req, res) {
 
     metadata: {
       engine: "Home2Flight Timeline Engine",
-      version: "0.3.0"
+      version: "0.4.0"
     }
   });
 }
