@@ -3,18 +3,15 @@ export function calculateReliability({
   flightStatus = "scheduled",
   hasLiveData = false,
   alerts = [],
+  operationalSignals = [],
   userContext = {},
 }) {
-
-  let score = 82;
+  let score = 86;
 
   const adjustments = [];
 
-  // AIRPORT RISK
-
   if (airportRisk === "high") {
     score -= 15;
-
     adjustments.push({
       factor: "airport_risk",
       impact: -15,
@@ -24,7 +21,6 @@ export function calculateReliability({
 
   if (airportRisk === "medium") {
     score -= 8;
-
     adjustments.push({
       factor: "airport_risk",
       impact: -8,
@@ -32,11 +28,8 @@ export function calculateReliability({
     });
   }
 
-  // FLIGHT STATUS
-
   if (flightStatus === "delayed") {
     score -= 5;
-
     adjustments.push({
       factor: "flight_status",
       impact: -5,
@@ -46,7 +39,6 @@ export function calculateReliability({
 
   if (flightStatus === "cancelled") {
     score -= 35;
-
     adjustments.push({
       factor: "flight_status",
       impact: -35,
@@ -54,11 +46,8 @@ export function calculateReliability({
     });
   }
 
-  // LIVE DATA
-
   if (!hasLiveData) {
     score -= 10;
-
     adjustments.push({
       factor: "live_data",
       impact: -10,
@@ -66,15 +55,12 @@ export function calculateReliability({
     });
   }
 
-  // ALERTS
-
-  const totalAlertImpact = alerts.reduce((acc, alert) => {
-    return acc + (alert.impactMinutes || 0);
+  const alertImpact = alerts.reduce((sum, alert) => {
+    return sum + (alert.impactMinutes || 0);
   }, 0);
 
-  if (totalAlertImpact >= 20) {
+  if (alertImpact >= 20) {
     score -= 10;
-
     adjustments.push({
       factor: "alerts",
       impact: -10,
@@ -82,11 +68,28 @@ export function calculateReliability({
     });
   }
 
-  // USER CONTEXT
+  const operationalImpact = operationalSignals.reduce((sum, signal) => {
+    return sum + (signal.impactMinutes || 0);
+  }, 0);
+
+  if (operationalImpact >= 30) {
+    score -= 12;
+    adjustments.push({
+      factor: "operational_intelligence",
+      impact: -12,
+      reason: "Sinais operacionais relevantes aumentam a incerteza",
+    });
+  } else if (operationalImpact >= 10) {
+    score -= 6;
+    adjustments.push({
+      factor: "operational_intelligence",
+      impact: -6,
+      reason: "Sinais operacionais moderados detetados",
+    });
+  }
 
   if (userContext.kids) {
     score -= 3;
-
     adjustments.push({
       factor: "kids",
       impact: -3,
@@ -96,7 +99,6 @@ export function calculateReliability({
 
   if (userContext.transport === "public") {
     score -= 4;
-
     adjustments.push({
       factor: "transport",
       impact: -4,
@@ -104,12 +106,8 @@ export function calculateReliability({
     });
   }
 
-  // LIMITS
-
   if (score > 96) score = 96;
   if (score < 15) score = 15;
-
-  // CONFIDENCE
 
   let confidence = "Baixa";
 
@@ -118,8 +116,6 @@ export function calculateReliability({
   } else if (score >= 65) {
     confidence = "Média";
   }
-
-  // RISK LEVEL
 
   let riskLevel = "high";
 
@@ -136,10 +132,10 @@ export function calculateReliability({
 
     explanation: {
       summary:
-        "Pontuação calculada com base em aeroporto, estado operacional do voo, alertas ativos e contexto do utilizador.",
-
+        "Pontuação calculada com base em aeroporto, voo, alertas, sinais operacionais e contexto do utilizador.",
       liveDataActive: hasLiveData,
-
+      alertImpactMinutes: alertImpact,
+      operationalImpactMinutes: operationalImpact,
       adjustmentCount: adjustments.length,
     },
 
