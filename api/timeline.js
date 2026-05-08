@@ -1,274 +1,262 @@
-function getAirportProfile(code) {
-  const airports = {
-    LIS: {
-      name: "Lisboa Humberto Delgado",
-      country: "Portugal",
-      security: 18,
-      bagDrop: 12,
-      passport: 10,
-      gateWalk: 14,
-      reliability: 72
-    },
+import { calculateReliability } from "./reliability-engine.js";
 
-    AMS: {
-      name: "Amsterdam Schiphol",
-      country: "Netherlands",
-      security: 22,
-      bagDrop: 14,
-      passport: 12,
-      gateWalk: 18,
-      reliability: 82
-    },
+export default function handler(req, res) {
 
-    CDG: {
-      name: "Paris Charles de Gaulle",
-      country: "France",
-      security: 32,
-      bagDrop: 18,
-      passport: 20,
-      gateWalk: 28,
-      reliability: 64
-    },
+  const {
+    flight = "TP1365",
+    bags = "false",
+    kids = "false",
+    flightType = "schengen",
+    transport = "car",
+  } = req.query;
 
-    DXB: {
-      name: "Dubai International",
-      country: "United Arab Emirates",
-      security: 26,
-      bagDrop: 18,
-      passport: 18,
-      gateWalk: 26,
-      reliability: 74
-    }
-  };
+  // MOCK FLIGHT ENGINE
 
-  return airports[code] || airports.LIS;
-}
-
-function getFlight(flightNumber) {
   const flights = {
     TP1365: {
       airline: "TAP Air Portugal",
-      from: "LIS",
-      to: "AMS",
+      from: {
+        code: "LIS",
+        name: "Lisboa Humberto Delgado",
+        country: "Portugal",
+      },
+      to: {
+        code: "AMS",
+        name: "Amsterdam Schiphol",
+        country: "Netherlands",
+      },
       departure: "2026-05-08T14:20:00",
-      status: "scheduled"
-    },
-
-    EK192: {
-      airline: "Emirates",
-      from: "LIS",
-      to: "DXB",
-      departure: "2026-05-08T21:15:00",
-      status: "scheduled"
+      status: "scheduled",
     },
 
     AF1195: {
       airline: "Air France",
-      from: "LIS",
-      to: "CDG",
+      from: {
+        code: "LIS",
+        name: "Lisboa Humberto Delgado",
+        country: "Portugal",
+      },
+      to: {
+        code: "CDG",
+        name: "Paris Charles de Gaulle",
+        country: "France",
+      },
       departure: "2026-05-08T16:40:00",
-      status: "delayed"
-    }
+      status: "delayed",
+    },
   };
 
-  return flights[flightNumber] || flights.TP1365;
-}
+  const flightData = flights[flight] || flights["TP1365"];
 
-function toBoolean(value) {
-  return value === true || value === "true";
-}
+  // AIRPORT PROFILE ENGINE
 
-function getConfidence(score) {
-  if (score >= 80) return "Alta";
-  if (score >= 70) return "Média";
-  return "Média-baixa";
-}
+  let airportRisk = "normal";
 
-function getRiskLevel(score) {
-  if (score >= 80) return "low";
-  if (score >= 70) return "normal";
-  return "high";
-}
+  const destinationAirport = flightData.to.code;
 
-export default function handler(req, res) {
-  const flightNumber = (req.query.flight || "TP1365").toUpperCase();
+  if (destinationAirport === "CDG") {
+    airportRisk = "high";
+  }
 
-  const hasBags = toBoolean(req.query.bags);
-  const hasKids = toBoolean(req.query.kids);
-  const flightType = req.query.flightType || "schengen";
-  const transport = req.query.transport || "car";
+  if (destinationAirport === "AMS") {
+    airportRisk = "medium";
+  }
 
-  const flight = getFlight(flightNumber);
+  // AIRPORT BASE TIMES
 
-  const departureAirport = getAirportProfile(flight.from);
-  const arrivalAirport = getAirportProfile(flight.to);
+  let securityMinutes = 18;
+  let bagDropMinutes = 12;
+  let passportMinutes = 10;
+  let gateWalkMinutes = 14;
 
-  let securityMinutes = departureAirport.security;
-  let bagDropMinutes = hasBags ? departureAirport.bagDrop : 0;
-  let passportMinutes =
-    flightType === "passport" ? departureAirport.passport : 0;
-  let gateWalkMinutes = departureAirport.gateWalk;
+  if (destinationAirport === "AMS") {
+    securityMinutes = 22;
+    bagDropMinutes = 14;
+    passportMinutes = 12;
+    gateWalkMinutes = 18;
+  }
+
+  if (destinationAirport === "CDG") {
+    securityMinutes = 32;
+    bagDropMinutes = 18;
+    passportMinutes = 20;
+    gateWalkMinutes = 28;
+  }
+
+  // USER CONTEXT
+
+  const hasBags = bags === "true";
+  const withKids = kids === "true";
+
+  // ADJUSTMENTS
 
   const adjustments = [];
 
   if (hasBags) {
     bagDropMinutes += 8;
+
     adjustments.push({
       type: "bags",
       area: "airport",
       impactMinutes: 8,
-      reason: "Mala de porão aumenta margem de check-in/bag drop."
+      reason: "Mala de porão aumenta margem de check-in/bag drop.",
     });
   }
 
-  if (hasKids) {
-    securityMinutes += 6;
-    gateWalkMinutes += 5;
+  if (withKids) {
+    securityMinutes += 4;
+    gateWalkMinutes += 7;
+
     adjustments.push({
       type: "kids",
       area: "airport",
       impactMinutes: 11,
-      reason: "Crianças aumentam margem de deslocação e controlo."
+      reason: "Crianças aumentam margem de deslocação e controlo.",
     });
   }
 
   if (flightType === "passport") {
     passportMinutes += 10;
+
     adjustments.push({
       type: "passport",
       area: "airport",
       impactMinutes: 10,
-      reason: "Voo com controlo de passaporte/fronteira."
+      reason: "Voo com controlo de passaporte/fronteira.",
     });
   }
 
-  let transportTimeMinutes = 35;
-  let transportBufferMinutes = 15;
+  let transportMinutes = 0;
 
   if (transport === "public") {
-    transportTimeMinutes = 40;
-    transportBufferMinutes = 25;
+    transportMinutes = 25;
+
+    adjustments.push({
+      type: "transport",
+      area: "transport",
+      impactMinutes: 25,
+      reason: "Margem dinâmica associada a transporte público.",
+    });
   }
 
-  if (transport === "uber") {
-    transportTimeMinutes = 28;
-    transportBufferMinutes = 18;
-  }
+  if (flightData.status === "delayed") {
 
-  if (transport === "car") {
-    transportTimeMinutes = 30;
-    transportBufferMinutes = 15;
-  }
-
-  adjustments.push({
-    type: "transport",
-    area: "transport",
-    impactMinutes: transportBufferMinutes,
-    reason: `Margem dinâmica associada ao transporte: ${transport}.`
-  });
-
-  let baseSafetyBufferMinutes = 75;
-
-  if (flight.status === "delayed") {
-    baseSafetyBufferMinutes = 60;
     adjustments.push({
       type: "flight_status",
       area: "flight",
       impactMinutes: -15,
-      reason: "Voo atrasado reduz ligeiramente a antecedência recomendada."
+      reason: "Voo atrasado reduz ligeiramente antecedência recomendada.",
     });
   }
 
-  if (departureAirport.reliability < 70) {
-    baseSafetyBufferMinutes += 30;
-    adjustments.push({
-      type: "low_reliability",
-      area: "reliability",
-      impactMinutes: 30,
-      reason: "Aeroporto com menor fiabilidade exige margem adicional."
+  // ALERTS ENGINE
+
+  const alerts = [];
+
+  if (destinationAirport === "CDG") {
+    alerts.push({
+      type: "complex_airport",
+      severity: "high",
+      title: "Aeroporto complexo com maior incerteza operacional",
+      impactMinutes: 20,
+      source: "Home2Flight Airport Profile",
+      verified: true,
     });
   }
 
-  const airportProcessMinutes =
+  // TOTALS
+
+  const totalAirportProcessMinutes =
     securityMinutes +
     bagDropMinutes +
     passportMinutes +
     gateWalkMinutes;
 
-  const airportArrivalRecommendedMinutesBeforeDeparture =
-    airportProcessMinutes + baseSafetyBufferMinutes;
+  const estimatedTravelMinutes = 40;
+  const bufferMinutes = 25;
 
-  const leaveHomeRecommendedMinutesBeforeDeparture =
-    airportArrivalRecommendedMinutesBeforeDeparture +
-    transportTimeMinutes +
-    transportBufferMinutes;
+  const totalMinutes =
+    totalAirportProcessMinutes +
+    estimatedTravelMinutes +
+    bufferMinutes +
+    transportMinutes;
 
-  res.status(200).json({
-    flight: {
-      number: flightNumber,
-      airline: flight.airline,
-      status: flight.status
-    },
+  // RELIABILITY ENGINE
 
-    route: {
-      from: {
-        code: flight.from,
-        name: departureAirport.name,
-        country: departureAirport.country
-      },
-      to: {
-        code: flight.to,
-        name: arrivalAirport.name,
-        country: arrivalAirport.country
-      }
-    },
-
+  const reliability = calculateReliability({
+    airportRisk,
+    flightStatus: flightData.status,
+    hasLiveData: false,
+    alerts,
     userContext: {
-      bags: hasBags,
-      kids: hasKids,
-      flightType,
-      transport
+      kids: withKids,
+      transport,
     },
+  });
 
-    departure: {
-      scheduled: flight.departure
+  // RESPONSE
+
+  return res.status(200).json({
+    flight: {
+      number: flight,
+
+      airline: flightData.airline,
+
+      status: flightData.status,
+
+      route: {
+        from: flightData.from,
+        to: flightData.to,
+      },
+
+      userContext: {
+        bags: hasBags,
+        kids: withKids,
+        flightType,
+        transport,
+      },
+
+      departure: {
+        scheduled: flightData.departure,
+      },
     },
 
     timingBreakdown: {
       airportProcess: {
-        totalMinutes: airportProcessMinutes,
+        totalMinutes: totalAirportProcessMinutes,
+
         securityMinutes,
         bagDropMinutes,
         passportMinutes,
-        gateWalkMinutes
+        gateWalkMinutes,
       },
 
       transport: {
         mode: transport,
-        estimatedTravelMinutes: transportTimeMinutes,
-        bufferMinutes: transportBufferMinutes,
-        totalMinutes: transportTimeMinutes + transportBufferMinutes
+        estimatedTravelMinutes,
       },
 
       safetyBuffer: {
-        minutes: baseSafetyBufferMinutes
-      }
+        minutes: bufferMinutes,
+      },
+
+      totalMinutes,
     },
 
     recommendation: {
-      airportArrivalRecommendedMinutesBeforeDeparture,
-      leaveHomeRecommendedMinutesBeforeDeparture,
+      airportArrivalRecommendedMinutesBeforeDeparture:
+        totalAirportProcessMinutes + bufferMinutes,
+
+      leaveHomeRecommendedMinutesBeforeDeparture:
+        totalMinutes,
+
       recommendationReason:
-        "Estimativa separada por processo de aeroporto, transporte e margem de segurança."
+        "Estimativa separada por processo de aeroporto, transporte e margem de segurança.",
     },
 
-    reliability: {
-      score: departureAirport.reliability,
-      confidence: getConfidence(departureAirport.reliability),
-      riskLevel: getRiskLevel(departureAirport.reliability),
-      liveData: false,
-      source: "Home2Flight Timeline Engine"
-    },
+    reliability,
+
+    alerts,
 
     adjustments,
 
@@ -276,12 +264,12 @@ export default function handler(req, res) {
       "Ainda sem tempo real oficial de filas de segurança.",
       "Ainda sem bag drop por companhia aérea.",
       "Ainda sem alertas automáticos de greves, incidentes ou notícias.",
-      "Ainda sem reports da comunidade."
+      "Ainda sem reports da comunidade.",
     ],
 
     metadata: {
       engine: "Home2Flight Timeline Engine",
-      version: "0.4.0"
-    }
+      version: "0.5.0",
+    },
   });
 }
