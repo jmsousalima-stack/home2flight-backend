@@ -2,21 +2,25 @@
 
 import { useEffect, useState } from "react";
 
-import DepartureDecisionCard from "../components/DepartureDecisionCard";
-import TimelineCard from "../components/TimelineCard";
+import DepartureDecisionCard from "../components/DepartureDecisionCard.jsx";
+import TimelineCard from "../components/TimelineCard.jsx";
 
 export default function Home() {
   const [data, setData] = useState(null);
 
   useEffect(() => {
     async function loadData() {
-      const response = await fetch(
-        "https://home2flight-backend.vercel.app/api/home2flight?flight=AF1195&bags=true&kids=true&flightType=passport&transport=public"
-      );
+      try {
+        const response = await fetch(
+          "https://home2flight-backend.vercel.app/api/home2flight?flight=AF1195&bags=true&kids=true&flightType=passport&transport=public"
+        );
 
-      const json = await response.json();
+        const json = await response.json();
 
-      setData(json);
+        setData(json);
+      } catch (error) {
+        console.error("Home2Flight load error:", error);
+      }
     }
 
     loadData();
