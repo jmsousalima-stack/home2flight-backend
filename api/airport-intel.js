@@ -37,22 +37,46 @@ export default function handler(req, res) {
 
     timings: {
       security: {
-        status: "estimated",
+        status: dataQuality: {
+  level: "estimated",
+  confidence: "medium",
+  live: false,
+  official: false,
+  community: false
+},,
         minutes: profile.security,
         source: profile.sourceProfile
       },
       bagDrop: {
-        status: "estimated",
+        status: dataQuality: {
+  level: "estimated",
+  confidence: "medium",
+  live: false,
+  official: false,
+  community: false
+},,
         minutes: profile.bagDrop,
         source: profile.sourceProfile
       },
       passportControl: {
-        status: "estimated",
+        status: dataQuality: {
+  level: "estimated",
+  confidence: "medium",
+  live: false,
+  official: false,
+  community: false
+},,
         minutes: profile.passportControl,
         source: profile.sourceProfile
       },
       gateWalk: {
-        status: "estimated",
+        status: dataQuality: {
+  level: "estimated",
+  confidence: "medium",
+  live: false,
+  official: false,
+  community: false
+},,
         minutes: profile.gateWalk,
         source: profile.sourceProfile
       }
