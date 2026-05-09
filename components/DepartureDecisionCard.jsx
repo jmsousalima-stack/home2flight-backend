@@ -1,6 +1,7 @@
 export default function DepartureDecisionCard({ data }) {
   const riskLevel = data?.reliability?.riskLevel || "normal";
   const reliabilityScore = data?.reliability?.score || 0;
+  const flight = data?.flight;
 
   const badge =
     riskLevel === "high"
@@ -30,6 +31,8 @@ export default function DepartureDecisionCard({ data }) {
       : reliabilityScore < 75
       ? "#60a5fa"
       : "#86efac";
+
+  const topReasons = data?.reliability?.adjustments?.slice(0, 3) || [];
 
   return (
     <div
@@ -79,13 +82,13 @@ export default function DepartureDecisionCard({ data }) {
               marginBottom: 10,
             }}
           >
-            HOME2FLIGHT ENGINE
+            HOME2FLIGHT BRIEFING
           </div>
 
           <div
             style={{
               color: "white",
-              fontSize: 34,
+              fontSize: 32,
               lineHeight: 1.05,
               fontWeight: 900,
             }}
@@ -113,14 +116,37 @@ export default function DepartureDecisionCard({ data }) {
 
       <div
         style={{
-          color: "#cbd5e1",
-          fontSize: 18,
-          lineHeight: 1.35,
+          background: "rgba(255,255,255,0.055)",
+          borderRadius: 22,
+          padding: 16,
           position: "relative",
           zIndex: 1,
         }}
       >
-        {data.uiSummary.shortMessage}
+        <div
+          style={{
+            color: "#94a3b8",
+            fontSize: 13,
+            fontWeight: 800,
+            letterSpacing: 1,
+            textTransform: "uppercase",
+            marginBottom: 8,
+          }}
+        >
+          Operational briefing
+        </div>
+
+        <div
+          style={{
+            color: "#e5e7eb",
+            fontSize: 16,
+            lineHeight: 1.35,
+          }}
+        >
+          {flight?.number} para {flight?.route?.to?.code} exige margem adicional.
+          A recomendação considera risco aeroportuário, estado do voo, contexto
+          do passageiro e sinais operacionais ativos.
+        </div>
       </div>
 
       <div
@@ -201,7 +227,7 @@ export default function DepartureDecisionCard({ data }) {
           zIndex: 1,
         }}
       >
-        {data.reliability.adjustments.slice(0, 3).map((item, index) => (
+        {topReasons.map((item, index) => (
           <div
             key={index}
             style={{
