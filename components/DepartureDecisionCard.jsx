@@ -1,11 +1,43 @@
 export default function DepartureDecisionCard({ data }) {
+  const riskLevel = data?.reliability?.riskLevel || "normal";
+  const reliabilityScore = data?.reliability?.score || 0;
+
+  const badge =
+    riskLevel === "high"
+      ? {
+          text: "HIGH RISK",
+          color: "#fca5a5",
+          bg: "rgba(239,68,68,0.15)",
+          border: "rgba(239,68,68,0.35)",
+        }
+      : riskLevel === "normal"
+      ? {
+          text: "SENSITIVE",
+          color: "#fcd34d",
+          bg: "rgba(245,158,11,0.15)",
+          border: "rgba(245,158,11,0.35)",
+        }
+      : {
+          text: "STABLE",
+          color: "#86efac",
+          bg: "rgba(34,197,94,0.14)",
+          border: "rgba(34,197,94,0.35)",
+        };
+
+  const reliabilityColor =
+    reliabilityScore < 50
+      ? "#facc15"
+      : reliabilityScore < 75
+      ? "#60a5fa"
+      : "#86efac";
+
   return (
     <div
       style={{
         background: "linear-gradient(180deg, #0f172a 0%, #111c44 100%)",
         borderRadius: 28,
         padding: 22,
-        border: "1px solid rgba(245,158,11,0.7)",
+        border: `1px solid ${badge.border}`,
         boxShadow: "0 18px 60px rgba(0,0,0,0.4)",
         display: "flex",
         flexDirection: "column",
@@ -64,18 +96,18 @@ export default function DepartureDecisionCard({ data }) {
 
         <div
           style={{
-            background: "rgba(239,68,68,0.15)",
-            color: "#fca5a5",
+            background: badge.bg,
+            color: badge.color,
             padding: "7px 10px",
             borderRadius: 999,
             fontWeight: 800,
             fontSize: 11,
-            border: "1px solid rgba(239,68,68,0.3)",
+            border: `1px solid ${badge.border}`,
             whiteSpace: "nowrap",
             marginTop: 26,
           }}
         >
-          SENSITIVE
+          {badge.text}
         </div>
       </div>
 
@@ -104,7 +136,7 @@ export default function DepartureDecisionCard({ data }) {
           label="Reliability"
           value={data.reliability.score}
           caption={data.uiSummary.reliabilityLabel}
-          color="#facc15"
+          color={reliabilityColor}
         />
 
         <MetricBox
@@ -169,7 +201,7 @@ export default function DepartureDecisionCard({ data }) {
           zIndex: 1,
         }}
       >
-        {data.uiSummary.mainRiskFactors.slice(0, 3).map((risk, index) => (
+        {data.reliability.adjustments.slice(0, 3).map((item, index) => (
           <div
             key={index}
             style={{
@@ -182,7 +214,7 @@ export default function DepartureDecisionCard({ data }) {
               maxWidth: "100%",
             }}
           >
-            {risk}
+            {item.reason}
           </div>
         ))}
       </div>
