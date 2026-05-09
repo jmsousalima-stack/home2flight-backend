@@ -1,151 +1,207 @@
-export default function TimelineCard({ timeline }) {
-  if (!timeline || timeline.length === 0) {
-    return null;
+function getCardStyle(item) {
+  if (item.level === "high") {
+    return {
+      border: "#fca5a5",
+      background: "#fef2f2",
+      badge: "#ef4444",
+      timeBg: "#fee2e2",
+      timeColor: "#dc2626",
+    };
   }
 
-  function formatTime(value) {
-    return new Date(value).toLocaleTimeString("pt-PT", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  if (item.level === "medium") {
+    return {
+      border: "#fde047",
+      background: "#fffbeb",
+      badge: "#ca8a04",
+      timeBg: "#fef3c7",
+      timeColor: "#ca8a04",
+    };
   }
 
-  function getRiskByCategory(category) {
-    if (category === "transport") return "attention";
-    if (category === "airport") return "warning";
-    return "safe";
-  }
+  return {
+    border: "#67e8f9",
+    background: "#f8fafc",
+    badge: "#0284c7",
+    timeBg: "#ecfeff",
+    timeColor: "#0284c7",
+  };
+}
 
-  function getSourceByCategory(category) {
-    if (category === "transport") return "Route";
-    if (category === "airport") return "Airport intel";
-    if (category === "flight") return "Flight data";
-    return "Preparation";
-  }
+function formatTime(value) {
+  return new Date(value).toLocaleTimeString("pt-PT", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
-  function getBufferByCategory(category) {
-    if (category === "transport") return "+25m";
-    if (category === "airport") return "+25m";
-    if (category === "flight") return "pending";
-    return "prep";
-  }
+export default function TimelineCard({ data }) {
+  const timeline = data?.timeline || [];
 
   return (
     <div
       style={{
-        background: "#f8fafc",
-        borderRadius: 28,
-        padding: 20,
+        background: "white",
+        borderRadius: 32,
+        padding: 22,
         display: "flex",
         flexDirection: "column",
-        gap: 14,
+        gap: 18,
+        marginTop: 20,
       }}
     >
-      <div
-        style={{
-          fontSize: 30,
-          fontWeight: 900,
-          color: "#0f172a",
-          marginBottom: 4,
-        }}
-      >
-        Timeline
+      <div>
+        <div
+          style={{
+            fontSize: 58,
+            fontWeight: 900,
+            color: "#0f172a",
+            lineHeight: 1,
+          }}
+        >
+          Timeline
+        </div>
+
+        <div
+          style={{
+            marginTop: 8,
+            color: "#64748b",
+            fontSize: 16,
+            lineHeight: 1.4,
+          }}
+        >
+          Real-time operational planning generated dynamically by the
+          Home2Flight Engine.
+        </div>
       </div>
 
       {timeline.map((item, index) => {
-        const risk = getRiskByCategory(item.category);
-
-        const colors = {
-          safe: {
-            bg: "#ecfeff",
-            border: "#a5f3fc",
-            text: "#0284c7",
-          },
-          attention: {
-            bg: "#fef9c3",
-            border: "#fde047",
-            text: "#ca8a04",
-          },
-          warning: {
-            bg: "#fee2e2",
-            border: "#fca5a5",
-            text: "#dc2626",
-          },
-        };
-
-        const current = colors[risk];
+        const style = getCardStyle(item);
 
         return (
           <div
-            key={item.step || index}
+            key={index}
             style={{
-              background: "white",
-              borderRadius: 22,
-              padding: 14,
-              display: "grid",
-              gridTemplateColumns: "74px 1fr",
-              gap: 14,
-              alignItems: "center",
-              border: `1.5px solid ${current.border}`,
-              boxShadow: "0 6px 18px rgba(15,23,42,0.05)",
+              background: style.background,
+              border: `2px solid ${style.border}`,
+              borderRadius: 28,
+              padding: 18,
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              position: "relative",
+              overflow: "hidden",
             }}
           >
             <div
               style={{
-                width: 74,
-                height: 74,
-                borderRadius: 20,
-                background: current.bg,
+                position: "absolute",
+                top: -40,
+                right: -40,
+                width: 120,
+                height: 120,
+                borderRadius: "50%",
+                background: `${style.border}20`,
+                filter: "blur(18px)",
+              }}
+            />
+
+            <div
+              style={{
                 display: "flex",
+                gap: 16,
                 alignItems: "center",
-                justifyContent: "center",
-                fontSize: 22,
-                fontWeight: 900,
-                color: current.text,
+                position: "relative",
+                zIndex: 1,
               }}
             >
-              {formatTime(item.recommendedTime)}
+              <div
+                style={{
+                  minWidth: 108,
+                  height: 108,
+                  borderRadius: 24,
+                  background: style.timeBg,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: style.timeColor,
+                  fontWeight: 900,
+                  fontSize: 28,
+                  boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.6)",
+                }}
+              >
+                {formatTime(item.time)}
+              </div>
+
+              <div style={{ flex: 1 }}>
+                <div
+                  style={{
+                    color: "#0f172a",
+                    fontWeight: 900,
+                    fontSize: 28,
+                    lineHeight: 1.05,
+                  }}
+                >
+                  {item.title}
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 8,
+                    color: "#64748b",
+                    fontWeight: 700,
+                    fontSize: 16,
+                  }}
+                >
+                  {item.category}
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 14,
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 8,
+                  }}
+                >
+                  <Tag
+                    label={item.confidence}
+                    background={`${style.border}20`}
+                    color={style.badge}
+                  />
+
+                  <Tag
+                    label={item.source}
+                    background="#e5e7eb"
+                    color="#334155"
+                  />
+
+                  <Tag
+                    label={item.buffer}
+                    background="#ecfdf5"
+                    color="#0f766e"
+                  />
+                </div>
+              </div>
             </div>
 
             <div
               style={{
-                minWidth: 0,
+                background: "rgba(255,255,255,0.7)",
+                borderRadius: 18,
+                padding: 14,
+                position: "relative",
+                zIndex: 1,
               }}
             >
               <div
                 style={{
-                  fontSize: 21,
-                  lineHeight: 1.12,
-                  fontWeight: 900,
                   color: "#0f172a",
-                }}
-              >
-                {item.title}
-              </div>
-
-              <div
-                style={{
-                  marginTop: 4,
-                  color: "#64748b",
                   fontSize: 14,
-                  fontWeight: 600,
-                  textTransform: "capitalize",
+                  lineHeight: 1.5,
                 }}
               >
-                {item.category}
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: 6,
-                  flexWrap: "wrap",
-                  marginTop: 10,
-                }}
-              >
-                <Badge text="Est." color={current.text} />
-                <Badge text={getSourceByCategory(item.category)} color="#334155" />
-                <Badge text={getBufferByCategory(item.category)} color="#0f766e" />
+                {item.reasoning}
               </div>
             </div>
           </div>
@@ -155,20 +211,20 @@ export default function TimelineCard({ timeline }) {
   );
 }
 
-function Badge({ text, color }) {
+function Tag({ label, background, color }) {
   return (
     <div
       style={{
-        background: `${color}12`,
-        color,
-        padding: "5px 8px",
+        padding: "8px 12px",
         borderRadius: 999,
-        fontSize: 11,
+        background,
+        color,
         fontWeight: 800,
-        whiteSpace: "nowrap",
+        fontSize: 13,
+        lineHeight: 1,
       }}
     >
-      {text}
+      {label}
     </div>
   );
 }
