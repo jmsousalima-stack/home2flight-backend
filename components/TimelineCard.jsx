@@ -1,42 +1,31 @@
 "use client";
 
 export default function TimelineCard({ timeline = [] }) {
-  const getBorderColor = (status) => {
+  const getStyle = (status) => {
     switch (status) {
       case "risk":
-        return "#f4b6bd";
+        return {
+          border: "#f3a6ad",
+          bg: "#fff5f6",
+          text: "#dc2626",
+          label: "RISK",
+        };
 
       case "buffer":
-        return "#f3d76b";
+        return {
+          border: "#f3d76b",
+          bg: "#fff9db",
+          text: "#b77900",
+          label: "BUFFER",
+        };
 
       default:
-        return "#bfefff";
-    }
-  };
-
-  const getBadgeColor = (status) => {
-    switch (status) {
-      case "risk":
-        return "#e85b6b";
-
-      case "buffer":
-        return "#d49b00";
-
-      default:
-        return "#2eaadc";
-    }
-  };
-
-  const getStatusLabel = (status) => {
-    switch (status) {
-      case "risk":
-        return "RISK";
-
-      case "buffer":
-        return "BUFFER";
-
-      default:
-        return "READY";
+        return {
+          border: "#bfefff",
+          bg: "#eefcff",
+          text: "#1687b7",
+          label: "READY",
+        };
     }
   };
 
@@ -44,19 +33,19 @@ export default function TimelineCard({ timeline = [] }) {
     <section
       style={{
         background: "#f8f8fb",
-        borderTopLeftRadius: 48,
-        borderTopRightRadius: 48,
-        padding: "42px 24px 120px",
-        marginTop: 32,
+        borderRadius: 38,
+        padding: "30px 18px 56px",
+        marginTop: 24,
       }}
     >
       <h2
         style={{
-          fontSize: 58,
-          fontWeight: 800,
+          fontSize: 38,
+          fontWeight: 900,
           lineHeight: 1,
           color: "#061235",
-          marginBottom: 18,
+          margin: "0 0 12px",
+          letterSpacing: "-1.5px",
         }}
       >
         Operational timeline
@@ -64,10 +53,10 @@ export default function TimelineCard({ timeline = [] }) {
 
       <p
         style={{
-          fontSize: 18,
-          lineHeight: 1.4,
+          fontSize: 16,
+          lineHeight: 1.35,
           color: "#6c7894",
-          marginBottom: 36,
+          margin: "0 0 26px",
         }}
       >
         Plano dinâmico por risco, voo, transporte e sinais operacionais.
@@ -77,115 +66,118 @@ export default function TimelineCard({ timeline = [] }) {
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: 24,
+          gap: 14,
         }}
       >
         {timeline.map((item) => {
-          const borderColor = getBorderColor(item.status);
-          const badgeColor = getBadgeColor(item.status);
+          const style = getStyle(item.status);
 
           return (
             <div
               key={item.id}
               style={{
-                border: `3px solid ${borderColor}`,
-                borderRadius: 36,
+                border: `2px solid ${style.border}`,
+                borderRadius: 28,
                 background: "#ffffff",
-                padding: 24,
+                padding: 16,
+                display: "flex",
+                gap: 14,
+                alignItems: "flex-start",
               }}
             >
               <div
                 style={{
+                  width: 82,
+                  height: 82,
+                  borderRadius: 22,
+                  background: style.bg,
                   display: "flex",
-                  gap: 22,
-                  alignItems: "flex-start",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
                 }}
               >
                 <div
                   style={{
-                    minWidth: 112,
-                    height: 112,
-                    borderRadius: 24,
-                    background: `${borderColor}33`,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
+                    fontSize: 23,
+                    fontWeight: 900,
+                    color: style.text,
+                    lineHeight: 1,
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 800,
-                      color: badgeColor,
-                    }}
-                  >
-                    {new Date(item.time).toLocaleTimeString("pt-PT", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop: 8,
-                      fontSize: 12,
-                      fontWeight: 800,
-                      letterSpacing: 1,
-                      color: badgeColor,
-                    }}
-                  >
-                    {getStatusLabel(item.status)}
-                  </div>
+                  {new Date(item.time).toLocaleTimeString("pt-PT", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
                 </div>
 
-                <div style={{ flex: 1 }}>
-                  <h3
-                    style={{
-                      fontSize: 28,
-                      lineHeight: 1.1,
-                      fontWeight: 800,
-                      color: "#07122f",
-                      marginBottom: 10,
-                    }}
-                  >
-                    {item.title}
-                  </h3>
-
-                  <div
-                    style={{
-                      fontSize: 18,
-                      fontWeight: 700,
-                      color: "#7b8398",
-                      marginBottom: 18,
-                    }}
-                  >
-                    {item.category}
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 10,
-                      marginBottom: 18,
-                    }}
-                  >
-                    <Tag text={item.confidence} />
-                    <Tag text={item.source} />
-                    <Tag text={item.buffer} green />
-                  </div>
-
-                  <p
-                    style={{
-                      fontSize: 18,
-                      lineHeight: 1.5,
-                      color: "#606b86",
-                    }}
-                  >
-                    {item.reasoning}
-                  </p>
+                <div
+                  style={{
+                    marginTop: 7,
+                    fontSize: 10,
+                    fontWeight: 900,
+                    letterSpacing: 1,
+                    color: style.text,
+                  }}
+                >
+                  {style.label}
                 </div>
+              </div>
+
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                }}
+              >
+                <h3
+                  style={{
+                    fontSize: 22,
+                    lineHeight: 1.1,
+                    fontWeight: 900,
+                    color: "#07122f",
+                    margin: "0 0 5px",
+                    letterSpacing: "-0.4px",
+                  }}
+                >
+                  {item.title}
+                </h3>
+
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 800,
+                    color: "#7b8398",
+                    marginBottom: 10,
+                  }}
+                >
+                  {item.category}
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 6,
+                    marginBottom: 10,
+                  }}
+                >
+                  <Tag text={item.confidence} />
+                  <Tag text={item.source} />
+                  <Tag text={item.buffer} green />
+                </div>
+
+                <p
+                  style={{
+                    fontSize: 13,
+                    lineHeight: 1.35,
+                    color: "#606b86",
+                    margin: 0,
+                  }}
+                >
+                  {item.reasoning}
+                </p>
               </div>
             </div>
           );
@@ -197,17 +189,18 @@ export default function TimelineCard({ timeline = [] }) {
 
 function Tag({ text, green = false }) {
   return (
-    <div
+    <span
       style={{
-        padding: "10px 16px",
+        padding: "6px 9px",
         borderRadius: 999,
-        fontSize: 15,
-        fontWeight: 700,
+        fontSize: 11,
+        fontWeight: 800,
         background: green ? "#e7f7ee" : "#eef0f6",
         color: green ? "#229b63" : "#44506b",
+        whiteSpace: "nowrap",
       }}
     >
       {text}
-    </div>
+    </span>
   );
 }
