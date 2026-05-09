@@ -1,87 +1,121 @@
 export default function DepartureDecisionCard({ data }) {
-  if (!data) return null;
-
-  const statusColor =
-    data?.uiSummary?.status === "critical"
-      ? "#ff4d4f"
-      : data?.uiSummary?.status === "warning"
-      ? "#faad14"
-      : "#52c41a";
-
   return (
     <div
       style={{
-        background: "#0f172a",
-        borderRadius: 24,
-        padding: 24,
-        color: "white",
-        border: `1px solid ${statusColor}`,
-        boxShadow: `0 0 30px rgba(0,0,0,0.35)`,
+        background:
+          "linear-gradient(180deg, #0f172a 0%, #111c44 100%)",
+        borderRadius: 36,
+        padding: 28,
+        border: "1px solid rgba(255,255,255,0.08)",
+        boxShadow: "0 20px 80px rgba(0,0,0,0.45)",
         display: "flex",
         flexDirection: "column",
-        gap: 20,
+        gap: 28,
+        overflow: "hidden",
+        position: "relative",
       }}
     >
-      <div>
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: 1,
-            color: statusColor,
-            textTransform: "uppercase",
-            marginBottom: 8,
-          }}
-        >
-          HOME2FLIGHT DECISION ENGINE
+      <div
+        style={{
+          position: "absolute",
+          top: -120,
+          right: -120,
+          width: 260,
+          height: 260,
+          borderRadius: "50%",
+          background: "rgba(59,130,246,0.15)",
+          filter: "blur(40px)",
+        }}
+      />
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              color: "#f59e0b",
+              fontWeight: 800,
+              fontSize: 16,
+              letterSpacing: 2,
+            }}
+          >
+            HOME2FLIGHT ENGINE
+          </div>
+
+          <div
+            style={{
+              marginTop: 10,
+              color: "white",
+              fontSize: 46,
+              lineHeight: 1,
+              fontWeight: 900,
+            }}
+          >
+            {data.decision.headline}
+          </div>
         </div>
 
-        <h1
+        <div
           style={{
-            fontSize: 28,
-            fontWeight: 800,
-            margin: 0,
-            lineHeight: 1.1,
+            background: "rgba(239,68,68,0.15)",
+            color: "#fca5a5",
+            padding: "10px 14px",
+            borderRadius: 999,
+            fontWeight: 700,
+            fontSize: 14,
+            border: "1px solid rgba(239,68,68,0.25)",
           }}
         >
-          {data.uiSummary.headline}
-        </h1>
-
-        <p
-          style={{
-            marginTop: 12,
-            color: "#cbd5e1",
-            fontSize: 16,
-            lineHeight: 1.5,
-          }}
-        >
-          {data.uiSummary.shortMessage}
-        </p>
+          SENSITIVE
+        </div>
       </div>
 
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
+          color: "#cbd5e1",
+          fontSize: 24,
+          lineHeight: 1.4,
+        }}
+      >
+        {data.uiSummary.shortMessage}
+      </div>
+
+      <div
+        style={{
+          display: "flex",
           gap: 16,
+          flexWrap: "wrap",
         }}
       >
         <div
           style={{
-            background: "#111827",
-            borderRadius: 18,
-            padding: 18,
+            flex: 1,
+            minWidth: 140,
+            background: "rgba(255,255,255,0.04)",
+            borderRadius: 26,
+            padding: 22,
           }}
         >
-          <div style={{ color: "#94a3b8", fontSize: 13 }}>
+          <div
+            style={{
+              color: "#94a3b8",
+              fontSize: 18,
+            }}
+          >
             Reliability
           </div>
 
           <div
             style={{
-              fontSize: 36,
-              fontWeight: 800,
-              marginTop: 8,
+              marginTop: 10,
+              color: "white",
+              fontSize: 64,
+              fontWeight: 900,
             }}
           >
             {data.reliability.score}
@@ -89,9 +123,9 @@ export default function DepartureDecisionCard({ data }) {
 
           <div
             style={{
-              marginTop: 6,
               color: "#facc15",
-              fontWeight: 600,
+              fontSize: 22,
+              fontWeight: 700,
             }}
           >
             {data.uiSummary.reliabilityLabel}
@@ -100,20 +134,28 @@ export default function DepartureDecisionCard({ data }) {
 
         <div
           style={{
-            background: "#111827",
-            borderRadius: 18,
-            padding: 18,
+            flex: 1,
+            minWidth: 140,
+            background: "rgba(255,255,255,0.04)",
+            borderRadius: 26,
+            padding: 22,
           }}
         >
-          <div style={{ color: "#94a3b8", fontSize: 13 }}>
+          <div
+            style={{
+              color: "#94a3b8",
+              fontSize: 18,
+            }}
+          >
             Confidence
           </div>
 
           <div
             style={{
-              fontSize: 36,
-              fontWeight: 800,
-              marginTop: 8,
+              marginTop: 10,
+              color: "white",
+              fontSize: 64,
+              fontWeight: 900,
             }}
           >
             {data.confidence.score}
@@ -121,9 +163,9 @@ export default function DepartureDecisionCard({ data }) {
 
           <div
             style={{
-              marginTop: 6,
               color: "#60a5fa",
-              fontWeight: 600,
+              fontSize: 22,
+              fontWeight: 700,
             }}
           >
             {data.uiSummary.confidenceLabel}
@@ -133,16 +175,15 @@ export default function DepartureDecisionCard({ data }) {
 
       <div
         style={{
-          background: "#111827",
-          borderRadius: 18,
-          padding: 20,
+          background: "rgba(255,255,255,0.04)",
+          borderRadius: 30,
+          padding: 24,
         }}
       >
         <div
           style={{
-            fontWeight: 700,
-            marginBottom: 12,
-            fontSize: 15,
+            color: "#94a3b8",
+            fontSize: 18,
           }}
         >
           Recommended Departure
@@ -150,14 +191,16 @@ export default function DepartureDecisionCard({ data }) {
 
         <div
           style={{
-            fontSize: 42,
-            fontWeight: 800,
+            marginTop: 12,
+            color: "white",
+            fontSize: 82,
+            fontWeight: 900,
             lineHeight: 1,
           }}
         >
           {new Date(
             data.decision.leaveHomeTime
-          ).toLocaleTimeString([], {
+          ).toLocaleTimeString("pt-PT", {
             hour: "2-digit",
             minute: "2-digit",
           })}
@@ -165,12 +208,36 @@ export default function DepartureDecisionCard({ data }) {
 
         <div
           style={{
-            marginTop: 10,
+            marginTop: 12,
             color: "#94a3b8",
+            fontSize: 22,
           }}
         >
           Leave home recommendation
         </div>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        {data.uiSummary.mainRiskFactors.map((risk, index) => (
+          <div
+            key={index}
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              color: "#cbd5e1",
+              padding: "10px 14px",
+              borderRadius: 999,
+              fontSize: 15,
+            }}
+          >
+            {risk}
+          </div>
+        ))}
       </div>
     </div>
   );
