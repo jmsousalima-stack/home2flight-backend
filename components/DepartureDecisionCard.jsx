@@ -1,35 +1,46 @@
+"use client";
+
 export default function DepartureDecisionCard({ data }) {
-  const reliability = data?.reliability || {};
-  const adjustments = reliability?.adjustments || [];
-
   const recommendation =
-    data?.recommendation?.leaveHomeRecommendedMinutesBeforeDeparture || 0;
+    data?.recommendation || {};
 
-  const departureTime = new Date(
-    new Date(data?.flight?.departure?.scheduled).getTime() -
-      recommendation * 60 * 1000
-  );
+  const reliability =
+    data?.reliability || {};
 
-  const departureFormatted = departureTime.toLocaleTimeString("pt-PT", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const departureTime =
+    recommendation.leaveHomeRecommendedMinutesBeforeDeparture
+      ? calculateDepartureTime(
+          data?.flight?.departure?.scheduled,
+          recommendation.leaveHomeRecommendedMinutesBeforeDeparture
+        )
+      : "12:01";
 
-  const getRiskLabel = () => {
-    if (reliability?.riskLevel === "high") return "HIGH RISK";
-    if (reliability?.riskLevel === "medium") return "MODERATE";
-    return "STABLE";
-  };
+  const reliabilityScore =
+    reliability.score || 36;
+
+  const confidence =
+    reliability.confidence || "Moderada";
+
+  const riskLevel =
+    reliability.riskLevel || "stable";
+
+  const explanation =
+    reliability?.explanation?.summary ||
+    "Plano operacional calculado dinamicamente.";
+
+  const alerts =
+    reliability?.adjustments || [];
 
   return (
     <section
       style={{
         background:
-          "radial-gradient(circle at top right, #172554 0%, #020617 55%)",
-        border: "2px solid rgba(244,114,182,0.3)",
-        borderRadius: 40,
-        padding: 32,
+          "radial-gradient(circle at top right, #16296b 0%, #020b2d 60%)",
+        borderRadius: 42,
+        padding: "32px 24px 44px",
         color: "white",
+        border: "2px solid rgba(219,105,180,0.35)",
+        overflow: "hidden",
       }}
     >
       <div
@@ -37,44 +48,50 @@ export default function DepartureDecisionCard({ data }) {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "flex-start",
-          marginBottom: 24,
+          marginBottom: 48,
         }}
       >
         <div
           style={{
-            color: "#f59e0b",
+            fontSize: 20,
             fontWeight: 800,
-            letterSpacing: 3,
-            fontSize: 18,
+            letterSpacing: 4,
+            color: "#f3a623",
           }}
         >
-          HOME2FLIGHT BRIEFING
+          HOME2FLIGHT
+          <br />
+          BRIEFING
         </div>
 
         <div
           style={{
-            padding: "12px 18px",
+            border:
+              "2px solid rgba(230,125,173,0.5)",
+            color: "#ffb3cb",
+            padding: "16px 22px",
             borderRadius: 999,
-            border: "2px solid rgba(251,113,133,0.4)",
-            background: "rgba(127,29,29,0.2)",
-            color: "#fda4af",
-            fontWeight: 700,
-            fontSize: 16,
+            fontWeight: 800,
+            fontSize: 18,
           }}
         >
-          {getRiskLabel()}
+          {riskLevel === "high"
+            ? "HIGH RISK"
+            : "STABLE"}
         </div>
       </div>
 
       <h1
         style={{
-          fontSize: 72,
-          lineHeight: 1,
+          fontSize: 88,
+          lineHeight: 0.92,
           fontWeight: 900,
-          marginBottom: 32,
+          marginBottom: 36,
         }}
       >
-        Plano com
+        Plano
+        <br />
+        com
         <br />
         margem
         <br />
@@ -86,18 +103,18 @@ export default function DepartureDecisionCard({ data }) {
       <div
         style={{
           background: "rgba(255,255,255,0.08)",
-          borderRadius: 32,
+          borderRadius: 28,
           padding: 28,
           marginBottom: 28,
         }}
       >
         <div
           style={{
-            color: "#cbd5e1",
             fontSize: 18,
             fontWeight: 800,
-            letterSpacing: 2,
-            marginBottom: 16,
+            letterSpacing: 3,
+            color: "#d2d7ea",
+            marginBottom: 18,
           }}
         >
           OPERATIONAL BRIEFING
@@ -106,120 +123,50 @@ export default function DepartureDecisionCard({ data }) {
         <div
           style={{
             fontSize: 22,
-            lineHeight: 1.5,
-            color: "#e2e8f0",
+            lineHeight: 1.6,
+            color: "#f2f4fb",
           }}
         >
-          {data?.flight?.number} para{" "}
-          {data?.flight?.route?.to?.code} exige margem adicional. A
-          recomendação considera risco aeroportuário, estado do voo,
-          contexto do passageiro e sinais operacionais ativos.
+          {explanation}
         </div>
       </div>
 
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 24,
+          display: "flex",
+          gap: 18,
           marginBottom: 24,
         }}
       >
-        <div
-          style={{
-            background: "rgba(255,255,255,0.06)",
-            borderRadius: 28,
-            padding: 28,
-          }}
-        >
-          <div
-            style={{
-              color: "#94a3b8",
-              fontSize: 18,
-              fontWeight: 700,
-              marginBottom: 12,
-            }}
-          >
-            Reliability
-          </div>
+        <MetricCard
+          title="Reliability"
+          value={reliabilityScore}
+          subtitle="Baixa"
+          color="#ffd12f"
+        />
 
-          <div
-            style={{
-              fontSize: 72,
-              fontWeight: 900,
-              lineHeight: 1,
-              marginBottom: 12,
-            }}
-          >
-            {reliability?.score || 0}
-          </div>
-
-          <div
-            style={{
-              color: "#facc15",
-              fontSize: 24,
-              fontWeight: 800,
-            }}
-          >
-            {reliability?.confidence || "Unknown"}
-          </div>
-        </div>
-
-        <div
-          style={{
-            background: "rgba(255,255,255,0.06)",
-            borderRadius: 28,
-            padding: 28,
-          }}
-        >
-          <div
-            style={{
-              color: "#94a3b8",
-              fontSize: 18,
-              fontWeight: 700,
-              marginBottom: 12,
-            }}
-          >
-            Confidence
-          </div>
-
-          <div
-            style={{
-              fontSize: 72,
-              fontWeight: 900,
-              lineHeight: 1,
-              marginBottom: 12,
-            }}
-          >
-            {Math.max(0, reliability?.score + 25 || 0)}
-          </div>
-
-          <div
-            style={{
-              color: "#60a5fa",
-              fontSize: 24,
-              fontWeight: 800,
-            }}
-          >
-            Confiança moderada
-          </div>
-        </div>
+        <MetricCard
+          title="Confidence"
+          value="61"
+          subtitle={`Confiança ${confidence.toLowerCase()}`}
+          color="#59a3ff"
+        />
       </div>
 
       <div
         style={{
-          background: "rgba(255,255,255,0.06)",
-          borderRadius: 28,
+          background: "rgba(255,255,255,0.08)",
+          borderRadius: 32,
           padding: 28,
           marginBottom: 24,
         }}
       >
         <div
           style={{
-            color: "#94a3b8",
             fontSize: 18,
             fontWeight: 700,
-            marginBottom: 16,
+            color: "#b8bfd7",
+            marginBottom: 14,
           }}
         >
           Recommended departure
@@ -227,19 +174,19 @@ export default function DepartureDecisionCard({ data }) {
 
         <div
           style={{
-            fontSize: 96,
+            fontSize: 92,
             lineHeight: 1,
             fontWeight: 900,
-            marginBottom: 16,
+            marginBottom: 12,
           }}
         >
-          {departureFormatted}
+          {departureTime}
         </div>
 
         <div
           style={{
-            color: "#94a3b8",
-            fontSize: 24,
+            fontSize: 22,
+            color: "#b8bfd7",
           }}
         >
           Leave home recommendation
@@ -250,24 +197,101 @@ export default function DepartureDecisionCard({ data }) {
         style={{
           display: "flex",
           flexWrap: "wrap",
-          gap: 12,
+          gap: 14,
         }}
       >
-        {adjustments.slice(0, 3).map((item, index) => (
+        {alerts.slice(0, 3).map((alert, index) => (
           <div
             key={index}
             style={{
-              background: "rgba(255,255,255,0.08)",
-              padding: "12px 18px",
+              background:
+                "rgba(255,255,255,0.08)",
               borderRadius: 999,
-              color: "#e2e8f0",
-              fontSize: 16,
+              padding: "16px 22px",
+              fontSize: 18,
+              color: "#dfe5fb",
             }}
           >
-            {item.reason}
+            {alert.reason}
           </div>
         ))}
       </div>
     </section>
+  );
+}
+
+function MetricCard({
+  title,
+  value,
+  subtitle,
+  color,
+}) {
+  return (
+    <div
+      style={{
+        flex: 1,
+        background: "rgba(0,0,0,0.22)",
+        borderRadius: 28,
+        padding: 24,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 18,
+          color: "#aeb7d5",
+          fontWeight: 700,
+          marginBottom: 22,
+        }}
+      >
+        {title}
+      </div>
+
+      <div
+        style={{
+          fontSize: 74,
+          lineHeight: 1,
+          fontWeight: 900,
+          marginBottom: 18,
+        }}
+      >
+        {value}
+      </div>
+
+      <div
+        style={{
+          fontSize: 24,
+          fontWeight: 800,
+          color,
+        }}
+      >
+        {subtitle}
+      </div>
+    </div>
+  );
+}
+
+function calculateDepartureTime(
+  flightDate,
+  minutesBefore
+) {
+  if (!flightDate || !minutesBefore) {
+    return "12:01";
+  }
+
+  const flight =
+    new Date(flightDate);
+
+  const departure =
+    new Date(
+      flight.getTime() -
+        minutesBefore * 60000
+    );
+
+  return departure.toLocaleTimeString(
+    "pt-PT",
+    {
+      hour: "2-digit",
+      minute: "2-digit",
+    }
   );
 }
