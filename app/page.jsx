@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import DepartureDecisionCard from "../components/DepartureDecisionCard.jsx";
-import TimelineCard from "../components/TimelineCard.jsx";
+import DepartureDecisionCard from "@/components/DepartureDecisionCard";
+import TimelineCard from "@/components/TimelineCard";
 
 export default function Home() {
   const [data, setData] = useState(null);
@@ -12,14 +12,14 @@ export default function Home() {
     async function loadData() {
       try {
         const response = await fetch(
-          "https://home2flight-backend.vercel.app/api/home2flight?flight=AF1195&bags=true&kids=true&flightType=passport&transport=public"
+          "/api/timeline?flight=AF1195&bags=true&kids=true&flightType=passport&transport=public"
         );
 
         const json = await response.json();
 
         setData(json);
       } catch (error) {
-        console.error("Home2Flight load error:", error);
+        console.error(error);
       }
     }
 
@@ -36,7 +36,7 @@ export default function Home() {
           alignItems: "center",
           justifyContent: "center",
           color: "white",
-          fontFamily: "Arial",
+          fontFamily: "Inter, sans-serif",
         }}
       >
         Loading Home2Flight Engine...
@@ -47,25 +47,14 @@ export default function Home() {
   return (
     <main
       style={{
-        minHeight: "100vh",
         background: "#020617",
-        padding: 24,
-        fontFamily: "Arial",
+        minHeight: "100vh",
+        padding: "24px 0 80px",
       }}
     >
-      <div
-        style={{
-          maxWidth: 720,
-          margin: "0 auto",
-          display: "flex",
-          flexDirection: "column",
-          gap: 24,
-        }}
-      >
-        <DepartureDecisionCard data={data} />
+      <DepartureDecisionCard data={data} />
 
-        <TimelineCard timeline={data.timeline} />
-      </div>
+      <TimelineCard data={data} />
     </main>
   );
 }
