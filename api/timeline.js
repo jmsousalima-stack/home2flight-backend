@@ -111,6 +111,79 @@ function getCommunityReports(airportCode) {
   return reportsByAirport[airportCode] || [];
 }
 
+function buildTimeline({
+  flightData,
+  leaveHomeRecommendedMinutesBeforeDeparture,
+  airportArrivalRecommendedMinutesBeforeDeparture,
+  transportMinutes,
+  safetyBufferMinutes,
+  airportRisk,
+  transport,
+}) {
+  const departureTime = new Date(flightData.departure);
+
+  return [
+    {
+      time: new Date(departureTime.getTime() - 369 * 60000).toISOString(),
+      title: "Preparar documentos e essenciais",
+      category: "Preparation",
+      confidence: "Estimated",
+      source: "Preparation",
+      buffer: "Prep",
+      level: "low",
+      reasoning: "Tempo recomendado para preparação inicial antes da saída.",
+    },
+    {
+      time: new Date(departureTime.getTime() - 339 * 60000).toISOString(),
+      title: "Confirmar check-in online",
+      category: "Flight",
+      confidence: "Estimated",
+      source: "Flight data",
+      buffer: "Pending",
+      level: "low",
+      reasoning: "Verificação final do estado do voo e documentação digital.",
+    },
+    {
+      time: new Date(
+        departureTime.getTime() -
+          leaveHomeRecommendedMinutesBeforeDeparture * 60000
+      ).toISOString(),
+      title: "Sair de casa",
+      category: "Transport",
+      confidence: "Estimated",
+      source: "Route",
+      buffer: `+${transportMinutes}m`,
+      level: transport === "public" || transport === "uber" ? "medium" : "low",
+      reasoning:
+        "Hora calculada considerando transporte, buffers dinâmicos e margem operacional.",
+    },
+    {
+      time: new Date(
+        departureTime.getTime() -
+          airportArrivalRecommendedMinutesBeforeDeparture * 60000
+      ).toISOString(),
+      title: "Chegar ao aeroporto",
+      category: "Airport",
+      confidence: "Estimated",
+      source: "Airport intel",
+      buffer: `+${safetyBufferMinutes}m`,
+      level: airportRisk === "high" ? "high" : "medium",
+      reasoning:
+        "Chegada recomendada baseada em filas, deslocações internas, segurança e risco operacional.",
+    },
+    {
+      time: departureTime.toISOString(),
+      title: "Partida do voo",
+      category: "Flight",
+      confidence: "Estimated",
+      source: "Flight data",
+      buffer: "Pending",
+      level: "low",
+      reasoning: "Hora programada atualmente pela companhia aérea.",
+    },
+  ];
+}
+
 export default function handler(req, res) {
   const {
     flight = "TP1365",
@@ -136,7 +209,6 @@ export default function handler(req, res) {
       departure: "2026-05-08T14:20:00",
       status: "scheduled",
     },
-
     AF1195: {
       airline: "Air France",
       from: {
@@ -152,7 +224,6 @@ export default function handler(req, res) {
       departure: "2026-05-08T16:40:00",
       status: "delayed",
     },
-
     EK192: {
       airline: "Emirates",
       from: {
@@ -318,10 +389,7 @@ export default function handler(req, res) {
   }));
 
   const airportProcessMinutes =
-    securityMinutes +
-    bagDropMinutes +
-    passportMinutes +
-    gateWalkMinutes;
+    securityMinutes + bagDropMinutes + passportMinutes + gateWalkMinutes;
 
   const baseTravelMinutes = 40;
   const safetyBufferMinutes = 25;
@@ -333,6 +401,14 @@ export default function handler(req, res) {
     transportMinutes +
     operationalImpactMinutes +
     communityImpactMinutes;
+
+  const airportArrivalRecommendedMinutesBeforeDeparture =
+    airportProcessMinutes +
+    safetyBufferMinutes +
+    operationalImpactMinutes +
+    communityImpactMinutes;
+
+  const leaveHomeRecommendedMinutesBeforeDeparture = totalMinutes;
 
   const reliability = calculateReliability({
     airportRisk,
@@ -346,24 +422,31 @@ export default function handler(req, res) {
     },
   });
 
+  const timeline = buildTimeline({
+    flightData,
+    leaveHomeRecommendedMinutesBeforeDeparture,
+    airportArrivalRecommendedMinutesBeforeDeparture,
+    transportMinutes,
+    safetyBufferMinutes,
+    airportRisk,
+    transport,
+  });
+
   return res.status(200).json({
     flight: {
       number: flightNumber,
       airline: flightData.airline,
       status: flightData.status,
-
       route: {
         from: flightData.from,
         to: flightData.to,
       },
-
       userContext: {
         bags: hasBags,
         kids: withKids,
         flightType,
         transport,
       },
-
       departure: {
         scheduled: flightData.departure,
       },
@@ -383,42 +466,33 @@ export default function handler(req, res) {
         passportMinutes,
         gateWalkMinutes,
       },
-
       transport: {
         mode: transport,
         baseTravelMinutes,
         bufferMinutes: transportMinutes,
       },
-
       operationalImpact: {
         totalMinutes: operationalImpactMinutes,
         signals: operationalSignals,
       },
-
       communityImpact: {
         totalMinutes: communityImpactMinutes,
         reports: communityReports,
       },
-
       safetyBuffer: {
         minutes: safetyBufferMinutes,
       },
-
       totalMinutes,
     },
 
     recommendation: {
-      airportArrivalRecommendedMinutesBeforeDeparture:
-        airportProcessMinutes +
-        safetyBufferMinutes +
-        operationalImpactMinutes +
-        communityImpactMinutes,
-
-      leaveHomeRecommendedMinutesBeforeDeparture: totalMinutes,
-
+      airportArrivalRecommendedMinutesBeforeDeparture,
+      leaveHomeRecommendedMinutesBeforeDeparture,
       recommendationReason:
         "Estimativa calculada por voo, contexto do utilizador, perfil aeroportuário, sinais operacionais e reports comunitários.",
     },
+
+    timeline,
 
     reliability,
 
@@ -437,7 +511,7 @@ export default function handler(req, res) {
 
     metadata: {
       engine: "Home2Flight Timeline Engine",
-      version: "0.6.1",
+      version: "0.7.0",
     },
   });
 }
