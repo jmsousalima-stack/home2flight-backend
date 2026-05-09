@@ -1,64 +1,85 @@
 export default function TimelineCard({ timeline }) {
-  if (!timeline || timeline.length === 0) return null;
-
   return (
     <div
       style={{
-        background: "white",
-        borderRadius: 24,
+        background: "#ffffff",
+        borderRadius: 32,
         padding: 24,
-        border: "1px solid #e5e7eb",
         display: "flex",
         flexDirection: "column",
         gap: 18,
+        boxShadow: "0 10px 40px rgba(0,0,0,0.25)",
       }}
     >
-      <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>
+      <div
+        style={{
+          fontSize: 28,
+          fontWeight: 800,
+          color: "#0f172a",
+          marginBottom: 12,
+        }}
+      >
         Timeline
-      </h2>
+      </div>
 
-      {timeline.map((item) => (
+      {timeline.map((item, index) => (
         <div
-          key={item.step}
+          key={index}
           style={{
             display: "flex",
-            gap: 16,
+            gap: 18,
             alignItems: "center",
-            padding: 16,
-            borderRadius: 18,
             background: "#f8fafc",
+            borderRadius: 24,
+            padding: 18,
           }}
         >
           <div
             style={{
-              minWidth: 72,
-              height: 72,
-              borderRadius: 18,
-              background: "#e0f2fe",
-              color: "#0284c7",
+              minWidth: 82,
+              height: 82,
+              borderRadius: 22,
+              background: "#dbeafe",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              color: "#0284c7",
               fontWeight: 800,
-              fontSize: 18,
+              fontSize: 28,
             }}
           >
-            {new Date(item.recommendedTime).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+            {new Date(item.recommendedTime).toLocaleTimeString(
+              "pt-PT",
+              {
+                hour: "2-digit",
+                minute: "2-digit",
+              }
+            )}
           </div>
 
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 800 }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              flex: 1,
+            }}
+          >
+            <div
+              style={{
+                color: "#0f172a",
+                fontSize: 24,
+                fontWeight: 700,
+                lineHeight: 1.2,
+              }}
+            >
               {item.title}
             </div>
 
             <div
               style={{
-                marginTop: 6,
                 color: "#64748b",
-                fontSize: 14,
+                fontSize: 18,
                 textTransform: "capitalize",
               }}
             >
