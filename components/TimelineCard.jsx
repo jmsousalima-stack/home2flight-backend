@@ -1,4 +1,35 @@
 export default function TimelineCard({ timeline }) {
+  if (!timeline || timeline.length === 0) {
+    return null;
+  }
+
+  function formatTime(value) {
+    return new Date(value).toLocaleTimeString("pt-PT", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  function getRiskByCategory(category) {
+    if (category === "transport") return "attention";
+    if (category === "airport") return "warning";
+    return "safe";
+  }
+
+  function getSourceByCategory(category) {
+    if (category === "transport") return "Route estimate";
+    if (category === "airport") return "Airport intelligence";
+    if (category === "flight") return "Flight engine";
+    return "User preparation";
+  }
+
+  function getBufferByCategory(category) {
+    if (category === "transport") return "+25 min buffer";
+    if (category === "airport") return "+25 min safety";
+    if (category === "flight") return "Live status pending";
+    return "Prep margin";
+  }
+
   return (
     <div
       style={{
@@ -21,12 +52,7 @@ export default function TimelineCard({ timeline }) {
       </div>
 
       {timeline.map((item, index) => {
-        const risk =
-          item.type === "Airport"
-            ? "warning"
-            : item.type === "Transport"
-            ? "attention"
-            : "safe";
+        const risk = getRiskByCategory(item.category);
 
         const colors = {
           safe: {
@@ -53,7 +79,7 @@ export default function TimelineCard({ timeline }) {
 
         return (
           <div
-            key={index}
+            key={item.step || index}
             style={{
               background: "white",
               borderRadius: 28,
@@ -79,7 +105,7 @@ export default function TimelineCard({ timeline }) {
                 color: current.badge,
               }}
             >
-              {item.time}
+              {formatTime(item.recommendedTime)}
             </div>
 
             <div
@@ -106,9 +132,10 @@ export default function TimelineCard({ timeline }) {
                   color: "#64748b",
                   fontSize: 16,
                   fontWeight: 500,
+                  textTransform: "capitalize",
                 }}
               >
-                {item.type}
+                {item.category}
               </div>
 
               <div
@@ -119,9 +146,9 @@ export default function TimelineCard({ timeline }) {
                   marginTop: 4,
                 }}
               >
-                <Badge text="Confidence 82%" color={current.badge} />
-                <Badge text="Official source" color="#334155" />
-                <Badge text="+12 min buffer" color="#0f766e" />
+                <Badge text="Confidence estimated" color={current.badge} />
+                <Badge text={getSourceByCategory(item.category)} color="#334155" />
+                <Badge text={getBufferByCategory(item.category)} color="#0f766e" />
               </div>
             </div>
           </div>
