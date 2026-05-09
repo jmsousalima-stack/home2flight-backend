@@ -429,15 +429,15 @@ export default function handler(req, res) {
     adjustments,
 
     limitations: [
-      "Ainda sem tempo real oficial de filas de segurança.",
-      "Ainda sem bag drop por companhia aérea.",
-      "Ainda sem alertas automáticos de greves, incidentes ou notícias.",
-      "Reports comunitários ainda simulados.",
+      "Live security queue integration pending.",
+      "Airline-specific bag drop intelligence pending.",
+      "Real-time disruption monitoring expanding.",
+      "Community operational signals still in beta.",
     ],
 
     metadata: {
       engine: "Home2Flight Timeline Engine",
-      version: "0.6.0",
+      version: "0.6.1",
     },
   });
 }
