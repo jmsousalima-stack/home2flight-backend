@@ -1,5 +1,5 @@
 export default function TimelineCard({ data }) {
-  const timeline = data?.recommendation?.timeline || [];
+  const timeline = data?.timeline || [];
 
   const getBorderColor = (level) => {
     if (level === "high") return "#fca5a5";
@@ -19,26 +19,27 @@ export default function TimelineCard({ data }) {
     return "#ecfeff";
   };
 
+  if (!timeline.length) {
+    return null;
+  }
+
   return (
     <section
       style={{
         background: "#f3f4f6",
         borderRadius: 40,
-        padding: 32,
+        padding: 28,
       }}
     >
-      <div
-        style={{
-          marginBottom: 32,
-        }}
-      >
+      <div style={{ marginBottom: 28 }}>
         <h2
           style={{
-            fontSize: 64,
+            fontSize: 44,
             lineHeight: 1,
-            fontWeight: 800,
+            fontWeight: 900,
             color: "#020617",
-            marginBottom: 16,
+            margin: 0,
+            marginBottom: 14,
           }}
         >
           Timeline
@@ -46,13 +47,13 @@ export default function TimelineCard({ data }) {
 
         <p
           style={{
-            fontSize: 24,
-            lineHeight: 1.4,
+            fontSize: 18,
+            lineHeight: 1.35,
             color: "#64748b",
+            margin: 0,
           }}
         >
-          Real-time operational planning generated dynamically by the
-          Home2Flight Engine.
+          Plano operacional gerado dinamicamente pelo motor Home2Flight.
         </p>
       </div>
 
@@ -60,7 +61,7 @@ export default function TimelineCard({ data }) {
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: 24,
+          gap: 18,
         }}
       >
         {timeline.map((item, index) => (
@@ -68,19 +69,19 @@ export default function TimelineCard({ data }) {
             key={index}
             style={{
               background: "white",
-              borderRadius: 32,
-              border: `4px solid ${getBorderColor(item.level)}`,
-              padding: 24,
+              borderRadius: 28,
+              border: `2px solid ${getBorderColor(item.level)}`,
+              padding: 18,
               display: "flex",
-              gap: 24,
-              alignItems: "center",
+              gap: 16,
+              alignItems: "flex-start",
             }}
           >
             <div
               style={{
-                width: 120,
-                height: 120,
-                borderRadius: 24,
+                width: 86,
+                height: 86,
+                borderRadius: 22,
                 background: getBackgroundColor(item.level),
                 display: "flex",
                 alignItems: "center",
@@ -90,8 +91,8 @@ export default function TimelineCard({ data }) {
             >
               <div
                 style={{
-                  fontSize: 28,
-                  fontWeight: 800,
+                  fontSize: 24,
+                  fontWeight: 900,
                   color: getTimeColor(item.level),
                 }}
               >
@@ -102,17 +103,15 @@ export default function TimelineCard({ data }) {
               </div>
             </div>
 
-            <div
-              style={{
-                flex: 1,
-              }}
-            >
+            <div style={{ flex: 1 }}>
               <h3
                 style={{
-                  fontSize: 28,
-                  fontWeight: 800,
+                  fontSize: 24,
+                  lineHeight: 1.08,
+                  fontWeight: 900,
                   color: "#020617",
-                  marginBottom: 8,
+                  margin: 0,
+                  marginBottom: 6,
                 }}
               >
                 {item.title}
@@ -120,10 +119,10 @@ export default function TimelineCard({ data }) {
 
               <div
                 style={{
-                  fontSize: 18,
-                  fontWeight: 600,
+                  fontSize: 15,
+                  fontWeight: 700,
                   color: "#64748b",
-                  marginBottom: 16,
+                  marginBottom: 12,
                 }}
               >
                 {item.category}
@@ -133,55 +132,21 @@ export default function TimelineCard({ data }) {
                 style={{
                   display: "flex",
                   flexWrap: "wrap",
-                  gap: 10,
-                  marginBottom: 16,
+                  gap: 8,
+                  marginBottom: 12,
                 }}
               >
-                <div
-                  style={{
-                    background: "#eff6ff",
-                    color: "#0284c7",
-                    padding: "8px 14px",
-                    borderRadius: 999,
-                    fontSize: 16,
-                    fontWeight: 700,
-                  }}
-                >
-                  {item.confidence}
-                </div>
-
-                <div
-                  style={{
-                    background: "#e5e7eb",
-                    color: "#334155",
-                    padding: "8px 14px",
-                    borderRadius: 999,
-                    fontSize: 16,
-                    fontWeight: 700,
-                  }}
-                >
-                  {item.source}
-                </div>
-
-                <div
-                  style={{
-                    background: "#ecfdf5",
-                    color: "#0f766e",
-                    padding: "8px 14px",
-                    borderRadius: 999,
-                    fontSize: 16,
-                    fontWeight: 700,
-                  }}
-                >
-                  {item.buffer}
-                </div>
+                <Badge text={item.confidence} />
+                <Badge text={item.source} />
+                <Badge text={item.buffer} />
               </div>
 
               <p
                 style={{
-                  fontSize: 16,
-                  lineHeight: 1.5,
+                  fontSize: 14,
+                  lineHeight: 1.45,
                   color: "#475569",
+                  margin: 0,
                 }}
               >
                 {item.reasoning}
@@ -191,5 +156,23 @@ export default function TimelineCard({ data }) {
         ))}
       </div>
     </section>
+  );
+}
+
+function Badge({ text }) {
+  return (
+    <span
+      style={{
+        background: "#e5e7eb",
+        color: "#334155",
+        padding: "7px 10px",
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 800,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {text}
+    </span>
   );
 }
