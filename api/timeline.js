@@ -1,517 +1,108 @@
-import { calculateReliability } from "./reliability-engine.js";
-
-function getOperationalSignals(airportCode) {
-  const signalsByAirport = {
-    LIS: [],
-    AMS: [
-      {
-        type: "congestion",
-        severity: "medium",
-        title: "Possível congestionamento operacional",
-        impactMinutes: 10,
-        source: "Home2Flight Operational Profile",
-        verified: false,
-      },
-    ],
-    CDG: [
-      {
-        type: "airport_complexity",
-        severity: "high",
-        title: "Aeroporto complexo com maior variabilidade operacional",
-        impactMinutes: 20,
-        source: "Home2Flight Operational Profile",
-        verified: true,
-      },
-      {
-        type: "connection_pressure",
-        severity: "medium",
-        title: "Maior risco de filas e deslocações internas longas",
-        impactMinutes: 12,
-        source: "Home2Flight Airport Profile",
-        verified: true,
-      },
-    ],
-    DXB: [
-      {
-        type: "large_airport",
-        severity: "medium",
-        title: "Aeroporto de grande dimensão com deslocações internas longas",
-        impactMinutes: 15,
-        source: "Home2Flight Operational Profile",
-        verified: true,
-      },
-    ],
-  };
-
-  return signalsByAirport[airportCode] || [];
-}
-
-function getCommunityReports(airportCode) {
-  const reportsByAirport = {
-    LIS: [
-      {
-        type: "security_queue",
-        severity: "low",
-        title: "Fila de segurança dentro do normal",
-        reportedMinutesAgo: 18,
-        confidence: "medium",
-        impactMinutes: 0,
-        source: "community_report",
-        verified: false,
-      },
-    ],
-    AMS: [
-      {
-        type: "security_queue",
-        severity: "medium",
-        title: "Fila de segurança acima do normal",
-        reportedMinutesAgo: 22,
-        confidence: "medium",
-        impactMinutes: 10,
-        source: "community_report",
-        verified: false,
-      },
-    ],
-    CDG: [
-      {
-        type: "terminal_movement",
-        severity: "medium",
-        title: "Deslocações internas demoradas reportadas",
-        reportedMinutesAgo: 35,
-        confidence: "medium",
-        impactMinutes: 12,
-        source: "community_report",
-        verified: false,
-      },
-      {
-        type: "security_queue",
-        severity: "high",
-        title: "Fila de segurança longa reportada",
-        reportedMinutesAgo: 14,
-        confidence: "medium",
-        impactMinutes: 18,
-        source: "community_report",
-        verified: false,
-      },
-    ],
-    DXB: [
-      {
-        type: "gate_walk",
-        severity: "medium",
-        title: "Portas distantes reportadas por utilizadores",
-        reportedMinutesAgo: 41,
-        confidence: "medium",
-        impactMinutes: 12,
-        source: "community_report",
-        verified: false,
-      },
-    ],
-  };
-
-  return reportsByAirport[airportCode] || [];
-}
-
-function buildTimeline({
-  flightData,
-  leaveHomeRecommendedMinutesBeforeDeparture,
-  airportArrivalRecommendedMinutesBeforeDeparture,
-  transportMinutes,
-  safetyBufferMinutes,
-  airportRisk,
-  transport,
-}) {
-  const departureTime = new Date(flightData.departure);
-
-  return [
+export default async function handler(req, res) {
+  const timeline = [
     {
-      time: new Date(departureTime.getTime() - 369 * 60000).toISOString(),
+      id: 1,
+      time: "2026-05-08T10:31:00.000Z",
       title: "Preparar documentos e essenciais",
       category: "Preparation",
-      confidence: "Estimated",
+      status: "ready",
+      confidence: "Preparation",
       source: "Preparation",
       buffer: "Prep",
       level: "low",
-      reasoning: "Tempo recomendado para preparação inicial antes da saída.",
+      reasoning:
+        "Tempo recomendado para preparação inicial antes da saída.",
+      operationalSignals: [],
     },
+
     {
-      time: new Date(departureTime.getTime() - 339 * 60000).toISOString(),
+      id: 2,
+      time: "2026-05-08T11:01:00.000Z",
       title: "Confirmar check-in online",
       category: "Flight",
-      confidence: "Estimated",
+      status: "ready",
+      confidence: "Flight",
       source: "Flight data",
       buffer: "Pending",
       level: "low",
-      reasoning: "Verificação final do estado do voo e documentação digital.",
+      reasoning:
+        "Verificação final do estado do voo e documentação digital.",
+      operationalSignals: [
+        {
+          type: "flight_status",
+          severity: "medium",
+          label: "Atraso operacional detetado",
+        },
+      ],
     },
+
     {
-      time: new Date(
-        departureTime.getTime() -
-          leaveHomeRecommendedMinutesBeforeDeparture * 60000
-      ).toISOString(),
+      id: 3,
+      time: "2026-05-08T12:01:00.000Z",
       title: "Sair de casa",
       category: "Transport",
-      confidence: "Estimated",
-      source: "Route",
-      buffer: `+${transportMinutes}m`,
-      level: transport === "public" || transport === "uber" ? "medium" : "low",
+      status: "buffer",
+      confidence: "Transport",
+      source: "Route engine",
+      buffer: "+25m",
+      level: "medium",
       reasoning:
         "Hora calculada considerando transporte, buffers dinâmicos e margem operacional.",
+      operationalSignals: [
+        {
+          type: "traffic",
+          severity: "medium",
+          label: "Margem dinâmica aplicada",
+        },
+      ],
     },
+
     {
-      time: new Date(
-        departureTime.getTime() -
-          airportArrivalRecommendedMinutesBeforeDeparture * 60000
-      ).toISOString(),
+      id: 4,
+      time: "2026-05-08T13:06:00.000Z",
       title: "Chegar ao aeroporto",
       category: "Airport",
-      confidence: "Estimated",
-      source: "Airport intel",
-      buffer: `+${safetyBufferMinutes}m`,
-      level: airportRisk === "high" ? "high" : "medium",
+      status: "risk",
+      confidence: "Airport intel",
+      source: "Operational profile",
+      buffer: "+25m",
+      level: "high",
       reasoning:
         "Chegada recomendada baseada em filas, deslocações internas, segurança e risco operacional.",
+      operationalSignals: [
+        {
+          type: "security_queue",
+          severity: "high",
+          label: "Fila de segurança longa",
+        },
+        {
+          type: "airport_complexity",
+          severity: "medium",
+          label: "Terminal com elevada variabilidade",
+        },
+      ],
     },
+
     {
-      time: departureTime.toISOString(),
+      id: 5,
+      time: "2026-05-08T16:40:00.000Z",
       title: "Partida do voo",
       category: "Flight",
-      confidence: "Estimated",
+      status: "ready",
+      confidence: "Flight",
       source: "Flight data",
       buffer: "Pending",
       level: "low",
-      reasoning: "Hora programada atualmente pela companhia aérea.",
+      reasoning:
+        "Hora programada atualmente pela companhia aérea.",
+      operationalSignals: [],
     },
   ];
-}
 
-export default function handler(req, res) {
-  const {
-    flight = "TP1365",
-    bags = "false",
-    kids = "false",
-    flightType = "schengen",
-    transport = "car",
-  } = req.query;
-
-  const flights = {
-    TP1365: {
-      airline: "TAP Air Portugal",
-      from: {
-        code: "LIS",
-        name: "Lisboa Humberto Delgado",
-        country: "Portugal",
-      },
-      to: {
-        code: "AMS",
-        name: "Amsterdam Schiphol",
-        country: "Netherlands",
-      },
-      departure: "2026-05-08T14:20:00",
-      status: "scheduled",
-    },
-    AF1195: {
-      airline: "Air France",
-      from: {
-        code: "LIS",
-        name: "Lisboa Humberto Delgado",
-        country: "Portugal",
-      },
-      to: {
-        code: "CDG",
-        name: "Paris Charles de Gaulle",
-        country: "France",
-      },
-      departure: "2026-05-08T16:40:00",
-      status: "delayed",
-    },
-    EK192: {
-      airline: "Emirates",
-      from: {
-        code: "LIS",
-        name: "Lisboa Humberto Delgado",
-        country: "Portugal",
-      },
-      to: {
-        code: "DXB",
-        name: "Dubai International",
-        country: "United Arab Emirates",
-      },
-      departure: "2026-05-08T21:15:00",
-      status: "scheduled",
-    },
-  };
-
-  const flightNumber = flight.toUpperCase();
-  const flightData = flights[flightNumber] || flights.TP1365;
-
-  const departureAirportCode = flightData.from.code;
-  const destinationAirportCode = flightData.to.code;
-
-  const hasBags = bags === "true";
-  const withKids = kids === "true";
-
-  const operationalSignals = getOperationalSignals(destinationAirportCode);
-  const communityReports = getCommunityReports(destinationAirportCode);
-
-  let airportRisk = "normal";
-
-  if (destinationAirportCode === "CDG") {
-    airportRisk = "high";
-  }
-
-  if (destinationAirportCode === "AMS" || destinationAirportCode === "DXB") {
-    airportRisk = "medium";
-  }
-
-  let securityMinutes = 18;
-  let bagDropMinutes = 12;
-  let passportMinutes = 10;
-  let gateWalkMinutes = 14;
-
-  if (destinationAirportCode === "AMS") {
-    securityMinutes = 22;
-    bagDropMinutes = 14;
-    passportMinutes = 12;
-    gateWalkMinutes = 18;
-  }
-
-  if (destinationAirportCode === "CDG") {
-    securityMinutes = 32;
-    bagDropMinutes = 18;
-    passportMinutes = 20;
-    gateWalkMinutes = 28;
-  }
-
-  if (destinationAirportCode === "DXB") {
-    securityMinutes = 26;
-    bagDropMinutes = 18;
-    passportMinutes = 18;
-    gateWalkMinutes = 26;
-  }
-
-  const adjustments = [];
-
-  if (hasBags) {
-    bagDropMinutes += 8;
-
-    adjustments.push({
-      type: "bags",
-      area: "airport",
-      impactMinutes: 8,
-      reason: "Mala de porão aumenta margem de check-in/bag drop.",
-    });
-  }
-
-  if (withKids) {
-    securityMinutes += 4;
-    gateWalkMinutes += 7;
-
-    adjustments.push({
-      type: "kids",
-      area: "airport",
-      impactMinutes: 11,
-      reason: "Crianças aumentam margem de deslocação e controlo.",
-    });
-  }
-
-  if (flightType === "passport") {
-    passportMinutes += 10;
-
-    adjustments.push({
-      type: "passport",
-      area: "airport",
-      impactMinutes: 10,
-      reason: "Voo com controlo de passaporte/fronteira.",
-    });
-  }
-
-  let transportMinutes = 0;
-
-  if (transport === "public") {
-    transportMinutes = 25;
-
-    adjustments.push({
-      type: "transport",
-      area: "transport",
-      impactMinutes: 25,
-      reason: "Margem dinâmica associada a transporte público.",
-    });
-  }
-
-  if (transport === "uber") {
-    transportMinutes = 18;
-
-    adjustments.push({
-      type: "transport",
-      area: "transport",
-      impactMinutes: 18,
-      reason: "Margem dinâmica associada a Uber/táxi.",
-    });
-  }
-
-  if (transport === "car") {
-    transportMinutes = 15;
-
-    adjustments.push({
-      type: "transport",
-      area: "transport",
-      impactMinutes: 15,
-      reason: "Margem dinâmica associada a carro.",
-    });
-  }
-
-  if (flightData.status === "delayed") {
-    adjustments.push({
-      type: "flight_status",
-      area: "flight",
-      impactMinutes: -15,
-      reason: "Voo atrasado reduz ligeiramente antecedência recomendada.",
-    });
-  }
-
-  const operationalImpactMinutes = operationalSignals.reduce(
-    (sum, signal) => sum + (signal.impactMinutes || 0),
-    0
-  );
-
-  const communityImpactMinutes = communityReports.reduce(
-    (sum, report) => sum + (report.impactMinutes || 0),
-    0
-  );
-
-  const alertSignals = operationalSignals.map((signal) => ({
-    type: signal.type,
-    severity: signal.severity,
-    title: signal.title,
-    impactMinutes: signal.impactMinutes,
-    source: signal.source,
-    verified: signal.verified,
-  }));
-
-  const airportProcessMinutes =
-    securityMinutes + bagDropMinutes + passportMinutes + gateWalkMinutes;
-
-  const baseTravelMinutes = 40;
-  const safetyBufferMinutes = 25;
-
-  const totalMinutes =
-    airportProcessMinutes +
-    baseTravelMinutes +
-    safetyBufferMinutes +
-    transportMinutes +
-    operationalImpactMinutes +
-    communityImpactMinutes;
-
-  const airportArrivalRecommendedMinutesBeforeDeparture =
-    airportProcessMinutes +
-    safetyBufferMinutes +
-    operationalImpactMinutes +
-    communityImpactMinutes;
-
-  const leaveHomeRecommendedMinutesBeforeDeparture = totalMinutes;
-
-  const reliability = calculateReliability({
-    airportRisk,
-    flightStatus: flightData.status,
-    hasLiveData: false,
-    alerts: alertSignals,
-    operationalSignals,
-    userContext: {
-      kids: withKids,
-      transport,
-    },
-  });
-
-  const timeline = buildTimeline({
-    flightData,
-    leaveHomeRecommendedMinutesBeforeDeparture,
-    airportArrivalRecommendedMinutesBeforeDeparture,
-    transportMinutes,
-    safetyBufferMinutes,
-    airportRisk,
-    transport,
-  });
-
-  return res.status(200).json({
-    flight: {
-      number: flightNumber,
-      airline: flightData.airline,
-      status: flightData.status,
-      route: {
-        from: flightData.from,
-        to: flightData.to,
-      },
-      userContext: {
-        bags: hasBags,
-        kids: withKids,
-        flightType,
-        transport,
-      },
-      departure: {
-        scheduled: flightData.departure,
-      },
-    },
-
-    airportContext: {
-      departureAirportCode,
-      destinationAirportCode,
-      airportRisk,
-    },
-
-    timingBreakdown: {
-      airportProcess: {
-        totalMinutes: airportProcessMinutes,
-        securityMinutes,
-        bagDropMinutes,
-        passportMinutes,
-        gateWalkMinutes,
-      },
-      transport: {
-        mode: transport,
-        baseTravelMinutes,
-        bufferMinutes: transportMinutes,
-      },
-      operationalImpact: {
-        totalMinutes: operationalImpactMinutes,
-        signals: operationalSignals,
-      },
-      communityImpact: {
-        totalMinutes: communityImpactMinutes,
-        reports: communityReports,
-      },
-      safetyBuffer: {
-        minutes: safetyBufferMinutes,
-      },
-      totalMinutes,
-    },
-
-    recommendation: {
-      airportArrivalRecommendedMinutesBeforeDeparture,
-      leaveHomeRecommendedMinutesBeforeDeparture,
-      recommendationReason:
-        "Estimativa calculada por voo, contexto do utilizador, perfil aeroportuário, sinais operacionais e reports comunitários.",
-    },
-
+  res.status(200).json({
+    success: true,
+    generatedAt: new Date().toISOString(),
+    engine: "Home2Flight Operational Timeline Engine",
     timeline,
-
-    reliability,
-
-    alerts: alertSignals,
-
-    communityReports,
-
-    adjustments,
-
-    limitations: [
-      "Live security queue integration pending.",
-      "Airline-specific bag drop intelligence pending.",
-      "Real-time disruption monitoring expanding.",
-      "Community operational signals still in beta.",
-    ],
-
-    metadata: {
-      engine: "Home2Flight Timeline Engine",
-      version: "0.7.0",
-    },
   });
 }
