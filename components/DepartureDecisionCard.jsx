@@ -1,151 +1,119 @@
 export default function DepartureDecisionCard({ data }) {
-  const riskLevel = data?.reliability?.riskLevel || "normal";
-  const reliabilityScore = data?.reliability?.score || 0;
-  const flight = data?.flight;
+  const reliability = data?.reliability || {};
+  const adjustments = reliability?.adjustments || [];
 
-  const badge =
-    riskLevel === "high"
-      ? {
-          text: "HIGH RISK",
-          color: "#fca5a5",
-          bg: "rgba(239,68,68,0.15)",
-          border: "rgba(239,68,68,0.35)",
-        }
-      : riskLevel === "normal"
-      ? {
-          text: "SENSITIVE",
-          color: "#fcd34d",
-          bg: "rgba(245,158,11,0.15)",
-          border: "rgba(245,158,11,0.35)",
-        }
-      : {
-          text: "STABLE",
-          color: "#86efac",
-          bg: "rgba(34,197,94,0.14)",
-          border: "rgba(34,197,94,0.35)",
-        };
+  const recommendation =
+    data?.recommendation?.leaveHomeRecommendedMinutesBeforeDeparture || 0;
 
-  const reliabilityColor =
-    reliabilityScore < 50
-      ? "#facc15"
-      : reliabilityScore < 75
-      ? "#60a5fa"
-      : "#86efac";
+  const departureTime = new Date(
+    new Date(data?.flight?.departure?.scheduled).getTime() -
+      recommendation * 60 * 1000
+  );
 
-  const topReasons = data?.reliability?.adjustments?.slice(0, 3) || [];
+  const departureFormatted = departureTime.toLocaleTimeString("pt-PT", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const getRiskLabel = () => {
+    if (reliability?.riskLevel === "high") return "HIGH RISK";
+    if (reliability?.riskLevel === "medium") return "MODERATE";
+    return "STABLE";
+  };
 
   return (
-    <div
+    <section
       style={{
-        background: "linear-gradient(180deg, #0f172a 0%, #111c44 100%)",
-        borderRadius: 28,
-        padding: 22,
-        border: `1px solid ${badge.border}`,
-        boxShadow: "0 18px 60px rgba(0,0,0,0.4)",
-        display: "flex",
-        flexDirection: "column",
-        gap: 18,
-        overflow: "hidden",
-        position: "relative",
+        background:
+          "radial-gradient(circle at top right, #172554 0%, #020617 55%)",
+        border: "2px solid rgba(244,114,182,0.3)",
+        borderRadius: 40,
+        padding: 32,
+        color: "white",
       }}
     >
       <div
         style={{
-          position: "absolute",
-          top: -90,
-          right: -90,
-          width: 190,
-          height: 190,
-          borderRadius: "50%",
-          background: "rgba(59,130,246,0.18)",
-          filter: "blur(36px)",
-        }}
-      />
-
-      <div
-        style={{
           display: "flex",
           justifyContent: "space-between",
-          gap: 12,
           alignItems: "flex-start",
-          position: "relative",
-          zIndex: 1,
+          marginBottom: 24,
         }}
       >
-        <div style={{ flex: 1 }}>
-          <div
-            style={{
-              color: "#f59e0b",
-              fontWeight: 800,
-              fontSize: 12,
-              letterSpacing: 2,
-              marginBottom: 10,
-            }}
-          >
-            HOME2FLIGHT BRIEFING
-          </div>
-
-          <div
-            style={{
-              color: "white",
-              fontSize: 32,
-              lineHeight: 1.05,
-              fontWeight: 900,
-            }}
-          >
-            {data.decision.headline}
-          </div>
+        <div
+          style={{
+            color: "#f59e0b",
+            fontWeight: 800,
+            letterSpacing: 3,
+            fontSize: 18,
+          }}
+        >
+          HOME2FLIGHT BRIEFING
         </div>
 
         <div
           style={{
-            background: badge.bg,
-            color: badge.color,
-            padding: "7px 10px",
+            padding: "12px 18px",
             borderRadius: 999,
-            fontWeight: 800,
-            fontSize: 11,
-            border: `1px solid ${badge.border}`,
-            whiteSpace: "nowrap",
-            marginTop: 26,
+            border: "2px solid rgba(251,113,133,0.4)",
+            background: "rgba(127,29,29,0.2)",
+            color: "#fda4af",
+            fontWeight: 700,
+            fontSize: 16,
           }}
         >
-          {badge.text}
+          {getRiskLabel()}
         </div>
       </div>
 
+      <h1
+        style={{
+          fontSize: 72,
+          lineHeight: 1,
+          fontWeight: 900,
+          marginBottom: 32,
+        }}
+      >
+        Plano com
+        <br />
+        margem
+        <br />
+        operacional
+        <br />
+        sensível
+      </h1>
+
       <div
         style={{
-          background: "rgba(255,255,255,0.055)",
-          borderRadius: 22,
-          padding: 16,
-          position: "relative",
-          zIndex: 1,
+          background: "rgba(255,255,255,0.08)",
+          borderRadius: 32,
+          padding: 28,
+          marginBottom: 28,
         }}
       >
         <div
           style={{
-            color: "#94a3b8",
-            fontSize: 13,
+            color: "#cbd5e1",
+            fontSize: 18,
             fontWeight: 800,
-            letterSpacing: 1,
-            textTransform: "uppercase",
-            marginBottom: 8,
+            letterSpacing: 2,
+            marginBottom: 16,
           }}
         >
-          Operational briefing
+          OPERATIONAL BRIEFING
         </div>
 
         <div
           style={{
-            color: "#e5e7eb",
-            fontSize: 16,
-            lineHeight: 1.35,
+            fontSize: 22,
+            lineHeight: 1.5,
+            color: "#e2e8f0",
           }}
         >
-          {flight?.number} para {flight?.route?.to?.code} exige margem adicional.
-          A recomendação considera risco aeroportuário, estado do voo, contexto
-          do passageiro e sinais operacionais ativos.
+          {data?.flight?.number} para{" "}
+          {data?.flight?.route?.to?.code} exige margem adicional. A
+          recomendação considera risco aeroportuário, estado do voo,
+          contexto do passageiro e sinais operacionais ativos.
         </div>
       </div>
 
@@ -153,40 +121,105 @@ export default function DepartureDecisionCard({ data }) {
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
-          gap: 12,
-          position: "relative",
-          zIndex: 1,
+          gap: 24,
+          marginBottom: 24,
         }}
       >
-        <MetricBox
-          label="Reliability"
-          value={data.reliability.score}
-          caption={data.uiSummary.reliabilityLabel}
-          color={reliabilityColor}
-        />
+        <div
+          style={{
+            background: "rgba(255,255,255,0.06)",
+            borderRadius: 28,
+            padding: 28,
+          }}
+        >
+          <div
+            style={{
+              color: "#94a3b8",
+              fontSize: 18,
+              fontWeight: 700,
+              marginBottom: 12,
+            }}
+          >
+            Reliability
+          </div>
 
-        <MetricBox
-          label="Confidence"
-          value={data.confidence.score}
-          caption={data.uiSummary.confidenceLabel}
-          color="#60a5fa"
-        />
+          <div
+            style={{
+              fontSize: 72,
+              fontWeight: 900,
+              lineHeight: 1,
+              marginBottom: 12,
+            }}
+          >
+            {reliability?.score || 0}
+          </div>
+
+          <div
+            style={{
+              color: "#facc15",
+              fontSize: 24,
+              fontWeight: 800,
+            }}
+          >
+            {reliability?.confidence || "Unknown"}
+          </div>
+        </div>
+
+        <div
+          style={{
+            background: "rgba(255,255,255,0.06)",
+            borderRadius: 28,
+            padding: 28,
+          }}
+        >
+          <div
+            style={{
+              color: "#94a3b8",
+              fontSize: 18,
+              fontWeight: 700,
+              marginBottom: 12,
+            }}
+          >
+            Confidence
+          </div>
+
+          <div
+            style={{
+              fontSize: 72,
+              fontWeight: 900,
+              lineHeight: 1,
+              marginBottom: 12,
+            }}
+          >
+            {Math.max(0, reliability?.score + 25 || 0)}
+          </div>
+
+          <div
+            style={{
+              color: "#60a5fa",
+              fontSize: 24,
+              fontWeight: 800,
+            }}
+          >
+            Confiança moderada
+          </div>
+        </div>
       </div>
 
       <div
         style={{
-          background: "rgba(255,255,255,0.05)",
-          borderRadius: 22,
-          padding: 18,
-          position: "relative",
-          zIndex: 1,
+          background: "rgba(255,255,255,0.06)",
+          borderRadius: 28,
+          padding: 28,
+          marginBottom: 24,
         }}
       >
         <div
           style={{
             color: "#94a3b8",
-            fontSize: 14,
-            fontWeight: 600,
+            fontSize: 18,
+            fontWeight: 700,
+            marginBottom: 16,
           }}
         >
           Recommended departure
@@ -194,24 +227,19 @@ export default function DepartureDecisionCard({ data }) {
 
         <div
           style={{
-            marginTop: 6,
-            color: "white",
-            fontSize: 54,
-            fontWeight: 900,
+            fontSize: 96,
             lineHeight: 1,
+            fontWeight: 900,
+            marginBottom: 16,
           }}
         >
-          {new Date(data.decision.leaveHomeTime).toLocaleTimeString("pt-PT", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
+          {departureFormatted}
         </div>
 
         <div
           style={{
-            marginTop: 8,
             color: "#94a3b8",
-            fontSize: 15,
+            fontSize: 24,
           }}
         >
           Leave home recommendation
@@ -221,75 +249,25 @@ export default function DepartureDecisionCard({ data }) {
       <div
         style={{
           display: "flex",
-          gap: 8,
           flexWrap: "wrap",
-          position: "relative",
-          zIndex: 1,
+          gap: 12,
         }}
       >
-        {topReasons.map((item, index) => (
+        {adjustments.slice(0, 3).map((item, index) => (
           <div
             key={index}
             style={{
-              background: "rgba(255,255,255,0.07)",
-              color: "#cbd5e1",
-              padding: "8px 10px",
+              background: "rgba(255,255,255,0.08)",
+              padding: "12px 18px",
               borderRadius: 999,
-              fontSize: 12,
-              lineHeight: 1.2,
-              maxWidth: "100%",
+              color: "#e2e8f0",
+              fontSize: 16,
             }}
           >
             {item.reason}
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function MetricBox({ label, value, caption, color }) {
-  return (
-    <div
-      style={{
-        background: "rgba(255,255,255,0.05)",
-        borderRadius: 20,
-        padding: 16,
-      }}
-    >
-      <div
-        style={{
-          color: "#94a3b8",
-          fontSize: 13,
-          fontWeight: 600,
-        }}
-      >
-        {label}
-      </div>
-
-      <div
-        style={{
-          marginTop: 8,
-          color: "white",
-          fontSize: 42,
-          fontWeight: 900,
-          lineHeight: 1,
-        }}
-      >
-        {value}
-      </div>
-
-      <div
-        style={{
-          marginTop: 8,
-          color,
-          fontSize: 16,
-          fontWeight: 800,
-          lineHeight: 1.15,
-        }}
-      >
-        {caption}
-      </div>
-    </div>
+    </section>
   );
 }
