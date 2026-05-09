@@ -17,35 +17,36 @@ export default function TimelineCard({ timeline }) {
   }
 
   function getSourceByCategory(category) {
-    if (category === "transport") return "Route estimate";
-    if (category === "airport") return "Airport intelligence";
-    if (category === "flight") return "Flight engine";
-    return "User preparation";
+    if (category === "transport") return "Route";
+    if (category === "airport") return "Airport intel";
+    if (category === "flight") return "Flight data";
+    return "Preparation";
   }
 
   function getBufferByCategory(category) {
-    if (category === "transport") return "+25 min buffer";
-    if (category === "airport") return "+25 min safety";
-    if (category === "flight") return "Live status pending";
-    return "Prep margin";
+    if (category === "transport") return "+25m";
+    if (category === "airport") return "+25m";
+    if (category === "flight") return "pending";
+    return "prep";
   }
 
   return (
     <div
       style={{
         background: "#f8fafc",
-        borderRadius: 32,
-        padding: 24,
+        borderRadius: 28,
+        padding: 20,
         display: "flex",
         flexDirection: "column",
-        gap: 18,
+        gap: 14,
       }}
     >
       <div
         style={{
-          fontSize: 34,
+          fontSize: 30,
           fontWeight: 900,
           color: "#0f172a",
+          marginBottom: 4,
         }}
       >
         Timeline
@@ -57,21 +58,18 @@ export default function TimelineCard({ timeline }) {
         const colors = {
           safe: {
             bg: "#ecfeff",
-            border: "#67e8f9",
-            text: "#155e75",
-            badge: "#0ea5e9",
+            border: "#a5f3fc",
+            text: "#0284c7",
           },
           attention: {
             bg: "#fef9c3",
             border: "#fde047",
-            text: "#854d0e",
-            badge: "#eab308",
+            text: "#ca8a04",
           },
           warning: {
             bg: "#fee2e2",
             border: "#fca5a5",
-            text: "#991b1b",
-            badge: "#ef4444",
+            text: "#dc2626",
           },
         };
 
@@ -82,27 +80,28 @@ export default function TimelineCard({ timeline }) {
             key={item.step || index}
             style={{
               background: "white",
-              borderRadius: 28,
-              padding: 18,
-              display: "flex",
-              gap: 18,
+              borderRadius: 22,
+              padding: 14,
+              display: "grid",
+              gridTemplateColumns: "74px 1fr",
+              gap: 14,
               alignItems: "center",
-              border: `2px solid ${current.border}`,
-              boxShadow: "0 6px 20px rgba(0,0,0,0.05)",
+              border: `1.5px solid ${current.border}`,
+              boxShadow: "0 6px 18px rgba(15,23,42,0.05)",
             }}
           >
             <div
               style={{
-                minWidth: 92,
-                height: 92,
-                borderRadius: 22,
+                width: 74,
+                height: 74,
+                borderRadius: 20,
                 background: current.bg,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: 24,
+                fontSize: 22,
                 fontWeight: 900,
-                color: current.badge,
+                color: current.text,
               }}
             >
               {formatTime(item.recommendedTime)}
@@ -110,16 +109,13 @@ export default function TimelineCard({ timeline }) {
 
             <div
               style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
+                minWidth: 0,
               }}
             >
               <div
                 style={{
-                  fontSize: 22,
-                  lineHeight: 1.1,
+                  fontSize: 21,
+                  lineHeight: 1.12,
                   fontWeight: 900,
                   color: "#0f172a",
                 }}
@@ -129,9 +125,10 @@ export default function TimelineCard({ timeline }) {
 
               <div
                 style={{
+                  marginTop: 4,
                   color: "#64748b",
-                  fontSize: 16,
-                  fontWeight: 500,
+                  fontSize: 14,
+                  fontWeight: 600,
                   textTransform: "capitalize",
                 }}
               >
@@ -141,12 +138,12 @@ export default function TimelineCard({ timeline }) {
               <div
                 style={{
                   display: "flex",
-                  gap: 8,
+                  gap: 6,
                   flexWrap: "wrap",
-                  marginTop: 4,
+                  marginTop: 10,
                 }}
               >
-                <Badge text="Confidence estimated" color={current.badge} />
+                <Badge text="Est." color={current.text} />
                 <Badge text={getSourceByCategory(item.category)} color="#334155" />
                 <Badge text={getBufferByCategory(item.category)} color="#0f766e" />
               </div>
@@ -162,12 +159,13 @@ function Badge({ text, color }) {
   return (
     <div
       style={{
-        background: `${color}15`,
+        background: `${color}12`,
         color,
-        padding: "6px 10px",
+        padding: "5px 8px",
         borderRadius: 999,
-        fontSize: 12,
-        fontWeight: 700,
+        fontSize: 11,
+        fontWeight: 800,
+        whiteSpace: "nowrap",
       }}
     >
       {text}
