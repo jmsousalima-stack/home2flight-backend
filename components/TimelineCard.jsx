@@ -1,173 +1,192 @@
+function formatTime(value) {
+  return new Date(value).toLocaleTimeString("pt-PT", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getStepStyle(level) {
+  if (level === "high") {
+    return {
+      label: "Risk",
+      accent: "#ef4444",
+      soft: "#fee2e2",
+      border: "rgba(239,68,68,0.28)",
+    };
+  }
+
+  if (level === "medium") {
+    return {
+      label: "Buffer",
+      accent: "#d97706",
+      soft: "#fef3c7",
+      border: "rgba(217,119,6,0.28)",
+    };
+  }
+
+  return {
+    label: "Ready",
+    accent: "#0284c7",
+    soft: "#e0f2fe",
+    border: "rgba(2,132,199,0.22)",
+  };
+}
+
 export default function TimelineCard({ data }) {
   const timeline = data?.timeline || [];
 
-  const getBorderColor = (level) => {
-    if (level === "high") return "#fca5a5";
-    if (level === "medium") return "#fde047";
-    return "#a5f3fc";
-  };
-
-  const getTimeColor = (level) => {
-    if (level === "high") return "#dc2626";
-    if (level === "medium") return "#ca8a04";
-    return "#0284c7";
-  };
-
-  const getBackgroundColor = (level) => {
-    if (level === "high") return "#fee2e2";
-    if (level === "medium") return "#fef9c3";
-    return "#ecfeff";
-  };
-
-  if (!timeline.length) {
-    return null;
-  }
+  if (!timeline.length) return null;
 
   return (
     <section
       style={{
-        background: "#f3f4f6",
-        borderRadius: 40,
-        padding: 28,
+        background: "#f8fafc",
+        borderRadius: 34,
+        padding: 22,
+        boxShadow: "0 20px 60px rgba(15,23,42,0.12)",
       }}
     >
-      <div style={{ marginBottom: 28 }}>
-        <h2
+      <div style={{ marginBottom: 22 }}>
+        <div
           style={{
-            fontSize: 44,
+            color: "#0f172a",
+            fontSize: 34,
             lineHeight: 1,
             fontWeight: 900,
-            color: "#020617",
-            margin: 0,
-            marginBottom: 14,
+            letterSpacing: "-1.5px",
           }}
         >
-          Timeline
-        </h2>
+          Operational timeline
+        </div>
 
-        <p
+        <div
           style={{
-            fontSize: 18,
-            lineHeight: 1.35,
+            marginTop: 8,
             color: "#64748b",
-            margin: 0,
+            fontSize: 14,
+            lineHeight: 1.35,
           }}
         >
-          Plano operacional gerado dinamicamente pelo motor Home2Flight.
-        </p>
+          Plano dinâmico por risco, voo, transporte e sinais operacionais.
+        </div>
       </div>
 
       <div
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: 18,
+          gap: 12,
         }}
       >
-        {timeline.map((item, index) => (
-          <div
-            key={index}
-            style={{
-              background: "white",
-              borderRadius: 28,
-              border: `2px solid ${getBorderColor(item.level)}`,
-              padding: 18,
-              display: "flex",
-              gap: 16,
-              alignItems: "flex-start",
-            }}
-          >
+        {timeline.map((item, index) => {
+          const style = getStepStyle(item.level);
+
+          return (
             <div
+              key={`${item.title}-${index}`}
               style={{
-                width: 86,
-                height: 86,
-                borderRadius: 22,
-                background: getBackgroundColor(item.level),
-                display: "flex",
+                background: "white",
+                borderRadius: 24,
+                padding: 14,
+                border: `1px solid ${style.border}`,
+                boxShadow: "0 8px 24px rgba(15,23,42,0.05)",
+                display: "grid",
+                gridTemplateColumns: "76px 1fr",
+                gap: 12,
                 alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
               }}
             >
               <div
                 style={{
-                  fontSize: 24,
-                  fontWeight: 900,
-                  color: getTimeColor(item.level),
-                }}
-              >
-                {new Date(item.time).toLocaleTimeString("pt-PT", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </div>
-            </div>
-
-            <div style={{ flex: 1 }}>
-              <h3
-                style={{
-                  fontSize: 24,
-                  lineHeight: 1.08,
-                  fontWeight: 900,
-                  color: "#020617",
-                  margin: 0,
-                  marginBottom: 6,
-                }}
-              >
-                {item.title}
-              </h3>
-
-              <div
-                style={{
-                  fontSize: 15,
-                  fontWeight: 700,
-                  color: "#64748b",
-                  marginBottom: 12,
-                }}
-              >
-                {item.category}
-              </div>
-
-              <div
-                style={{
+                  width: 76,
+                  height: 76,
+                  borderRadius: 22,
+                  background: style.soft,
+                  color: style.accent,
                   display: "flex",
-                  flexWrap: "wrap",
-                  gap: 8,
-                  marginBottom: 12,
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: 900,
                 }}
               >
-                <Badge text={item.confidence} />
-                <Badge text={item.source} />
-                <Badge text={item.buffer} />
+                <div
+                  style={{
+                    fontSize: 22,
+                    lineHeight: 1,
+                  }}
+                >
+                  {formatTime(item.time)}
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 6,
+                    fontSize: 10,
+                    letterSpacing: 0.6,
+                    textTransform: "uppercase",
+                    opacity: 0.8,
+                  }}
+                >
+                  {style.label}
+                </div>
               </div>
 
-              <p
-                style={{
-                  fontSize: 14,
-                  lineHeight: 1.45,
-                  color: "#475569",
-                  margin: 0,
-                }}
-              >
-                {item.reasoning}
-              </p>
+              <div style={{ minWidth: 0 }}>
+                <div
+                  style={{
+                    color: "#0f172a",
+                    fontSize: 20,
+                    lineHeight: 1.08,
+                    fontWeight: 900,
+                    letterSpacing: "-0.3px",
+                  }}
+                >
+                  {item.title}
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 5,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <Pill text={item.category} />
+                  <Pill text={item.source} />
+                  <Pill text={item.buffer} strong />
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 8,
+                    color: "#64748b",
+                    fontSize: 13,
+                    lineHeight: 1.35,
+                  }}
+                >
+                  {item.reasoning}
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
 }
 
-function Badge({ text }) {
+function Pill({ text, strong = false }) {
   return (
     <span
       style={{
-        background: "#e5e7eb",
-        color: "#334155",
-        padding: "7px 10px",
+        background: strong ? "#ecfdf5" : "#f1f5f9",
+        color: strong ? "#047857" : "#334155",
+        padding: "5px 8px",
         borderRadius: 999,
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: 800,
         whiteSpace: "nowrap",
       }}
