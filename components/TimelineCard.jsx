@@ -47,28 +47,13 @@ function getStatusLabel(status) {
 function getSignalStyle(severity = "medium") {
   switch (severity) {
     case "high":
-      return {
-        bg: "#fff1f2",
-        color: "#d92d47",
-      };
-
+      return { bg: "#fff1f2", color: "#d92d47" };
     case "medium":
-      return {
-        bg: "#fff7e8",
-        color: "#b77900",
-      };
-
+      return { bg: "#fff7e8", color: "#b77900" };
     case "low":
-      return {
-        bg: "#edfdf3",
-        color: "#1f9d61",
-      };
-
+      return { bg: "#edfdf3", color: "#1f9d61" };
     default:
-      return {
-        bg: "#eef2f7",
-        color: "#53627c",
-      };
+      return { bg: "#eef2f7", color: "#53627c" };
   }
 }
 
@@ -80,17 +65,18 @@ export default function TimelineCard({ timeline = [] }) {
         borderTopLeftRadius: 42,
         borderTopRightRadius: 42,
         marginTop: 34,
-        padding: "34px 18px 120px",
+        padding: "34px 16px 120px",
         position: "relative",
         overflow: "hidden",
+        boxSizing: "border-box",
       }}
     >
-      <div style={{ marginBottom: 34 }}>
+      <div style={{ marginBottom: 30 }}>
         <h2
           style={{
-            fontSize: "clamp(40px, 10vw, 58px)",
-            lineHeight: 0.9,
-            letterSpacing: "-2.6px",
+            fontSize: "clamp(38px, 10vw, 54px)",
+            lineHeight: 0.92,
+            letterSpacing: "-2.4px",
             fontWeight: 950,
             color: "#03133d",
             margin: "0 0 16px",
@@ -107,7 +93,7 @@ export default function TimelineCard({ timeline = [] }) {
             lineHeight: 1.42,
             color: "#707b97",
             margin: 0,
-            maxWidth: 320,
+            maxWidth: 330,
           }}
         >
           Plano dinâmico por risco, voo, transporte e sinais operacionais.
@@ -117,8 +103,8 @@ export default function TimelineCard({ timeline = [] }) {
       <div
         style={{
           position: "absolute",
-          left: 42,
-          top: 220,
+          left: 32,
+          top: 210,
           bottom: 70,
           width: 2,
           background:
@@ -145,43 +131,45 @@ export default function TimelineCard({ timeline = [] }) {
             minute: "2-digit",
           });
 
-          const isLive =
-            item.status === "risk" || item.status === "buffer";
+          const isLive = item.status === "risk" || item.status === "buffer";
 
           return (
             <article
               key={item.id}
               style={{
                 position: "relative",
-                paddingLeft: 34,
+                paddingLeft: 24,
+                boxSizing: "border-box",
               }}
             >
               <div
                 style={{
                   position: "absolute",
-                  left: 0,
-                  top: 46,
+                  left: -1,
+                  top: 42,
                   width: 18,
                   height: 18,
                   borderRadius: 999,
                   background: accent,
                   border: "5px solid white",
-                  boxShadow: `0 0 28px ${accent}`,
+                  boxShadow: `0 0 26px ${accent}`,
                   zIndex: 5,
                 }}
               />
 
               <div
                 style={{
-                  background: "rgba(255,255,255,0.9)",
+                  background: "rgba(255,255,255,0.92)",
                   backdropFilter: "blur(18px)",
                   WebkitBackdropFilter: "blur(18px)",
                   border: `2px solid ${borderColor}`,
-                  borderRadius: 34,
-                  padding: 22,
-                  boxShadow:
-                    "0 12px 34px rgba(15,23,42,0.06)",
+                  borderRadius: 30,
+                  padding: 18,
+                  boxShadow: "0 12px 34px rgba(15,23,42,0.06)",
                   position: "relative",
+                  boxSizing: "border-box",
+                  width: "100%",
+                  overflow: "hidden",
                 }}
               >
                 {isLive && (
@@ -192,15 +180,15 @@ export default function TimelineCard({ timeline = [] }) {
                       gap: 8,
                       background:
                         item.status === "risk"
-                          ? "rgba(229,72,93,0.10)"
-                          : "rgba(201,151,0,0.10)",
+                          ? "rgba(229,72,93,0.1)"
+                          : "rgba(201,151,0,0.1)",
                       color: accent,
                       borderRadius: 999,
-                      padding: "8px 12px",
+                      padding: "7px 11px",
                       fontSize: 10,
                       fontWeight: 950,
                       letterSpacing: 1.4,
-                      marginBottom: 18,
+                      marginBottom: 16,
                     }}
                   >
                     <span
@@ -212,7 +200,6 @@ export default function TimelineCard({ timeline = [] }) {
                         boxShadow: `0 0 10px ${accent}`,
                       }}
                     />
-
                     LIVE STEP
                   </div>
                 )}
@@ -220,16 +207,18 @@ export default function TimelineCard({ timeline = [] }) {
                 <div
                   style={{
                     display: "flex",
-                    gap: 18,
+                    gap: 14,
                     alignItems: "flex-start",
+                    width: "100%",
+                    boxSizing: "border-box",
                   }}
                 >
                   <div
                     style={{
-                      minWidth: 112,
-                      width: 112,
-                      height: 112,
-                      borderRadius: 30,
+                      minWidth: 92,
+                      width: 92,
+                      height: 92,
+                      borderRadius: 24,
                       background: softBg,
                       display: "flex",
                       flexDirection: "column",
@@ -240,11 +229,11 @@ export default function TimelineCard({ timeline = [] }) {
                   >
                     <div
                       style={{
-                        fontSize: 28,
+                        fontSize: 24,
                         fontWeight: 950,
                         color: accent,
                         lineHeight: 1,
-                        marginBottom: 10,
+                        marginBottom: 9,
                       }}
                     >
                       {time}
@@ -252,8 +241,8 @@ export default function TimelineCard({ timeline = [] }) {
 
                     <div
                       style={{
-                        fontSize: 13,
-                        letterSpacing: 1.8,
+                        fontSize: 12,
+                        letterSpacing: 1.6,
                         fontWeight: 950,
                         color: accent,
                       }}
@@ -262,15 +251,22 @@ export default function TimelineCard({ timeline = [] }) {
                     </div>
                   </div>
 
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      boxSizing: "border-box",
+                    }}
+                  >
                     <h3
                       style={{
-                        fontSize: 31,
-                        lineHeight: 0.98,
-                        letterSpacing: "-1.3px",
+                        fontSize: "clamp(24px, 7vw, 30px)",
+                        lineHeight: 1,
+                        letterSpacing: "-1px",
                         color: "#04133d",
                         fontWeight: 950,
                         margin: "0 0 8px",
+                        overflowWrap: "break-word",
                       }}
                     >
                       {item.title}
@@ -278,10 +274,10 @@ export default function TimelineCard({ timeline = [] }) {
 
                     <div
                       style={{
-                        fontSize: 17,
+                        fontSize: 16,
                         fontWeight: 800,
                         color: "#8b92ab",
-                        marginBottom: 16,
+                        marginBottom: 14,
                       }}
                     >
                       {item.category}
@@ -291,19 +287,13 @@ export default function TimelineCard({ timeline = [] }) {
                       style={{
                         display: "flex",
                         flexWrap: "wrap",
-                        gap: 8,
-                        marginBottom: 14,
+                        gap: 7,
+                        marginBottom: 13,
                       }}
                     >
                       {item.source && <Tag text={item.source} />}
-
-                      {item.confidence && (
-                        <Tag text={item.confidence} />
-                      )}
-
-                      {item.buffer && (
-                        <Tag text={item.buffer} green />
-                      )}
+                      {item.confidence && <Tag text={item.confidence} />}
+                      {item.buffer && <Tag text={item.buffer} green />}
                     </div>
 
                     {item.operationalSignals?.length > 0 && (
@@ -311,42 +301,40 @@ export default function TimelineCard({ timeline = [] }) {
                         style={{
                           display: "flex",
                           flexWrap: "wrap",
-                          gap: 8,
-                          marginBottom: 16,
+                          gap: 7,
+                          marginBottom: 14,
                         }}
                       >
-                        {item.operationalSignals.map(
-                          (signal, index) => {
-                            const signalStyle =
-                              getSignalStyle(signal.severity);
+                        {item.operationalSignals.map((signal, index) => {
+                          const signalStyle = getSignalStyle(signal.severity);
 
-                            return (
-                              <span
-                                key={index}
-                                style={{
-                                  background: signalStyle.bg,
-                                  color: signalStyle.color,
-                                  padding: "10px 13px",
-                                  borderRadius: 999,
-                                  fontSize: 12,
-                                  fontWeight: 850,
-                                  lineHeight: 1.2,
-                                }}
-                              >
-                                {signal.label}
-                              </span>
-                            );
-                          }
-                        )}
+                          return (
+                            <span
+                              key={index}
+                              style={{
+                                background: signalStyle.bg,
+                                color: signalStyle.color,
+                                padding: "8px 11px",
+                                borderRadius: 999,
+                                fontSize: 12,
+                                fontWeight: 850,
+                                lineHeight: 1.2,
+                                maxWidth: "100%",
+                              }}
+                            >
+                              {signal.label}
+                            </span>
+                          );
+                        })}
                       </div>
                     )}
 
                     <p
                       style={{
-                        fontSize: 16,
-                        lineHeight: 1.48,
+                        fontSize: 15,
+                        lineHeight: 1.45,
                         color: "#667085",
-                        margin: "0 0 18px",
+                        margin: "0 0 15px",
                       }}
                     >
                       {item.reasoning}
@@ -358,7 +346,7 @@ export default function TimelineCard({ timeline = [] }) {
                         alignItems: "center",
                         gap: 8,
                         color: "#98a2b3",
-                        fontSize: 13,
+                        fontSize: 12,
                         fontWeight: 800,
                       }}
                     >
@@ -368,11 +356,10 @@ export default function TimelineCard({ timeline = [] }) {
                           height: 8,
                           borderRadius: 999,
                           background: "#22c55e",
-                          boxShadow:
-                            "0 0 12px rgba(34,197,94,0.8)",
+                          boxShadow: "0 0 12px rgba(34,197,94,0.8)",
+                          flexShrink: 0,
                         }}
                       />
-
                       Updated 2 min ago
                     </div>
                   </div>
@@ -390,13 +377,14 @@ function Tag({ text, green = false }) {
   return (
     <span
       style={{
-        padding: "9px 13px",
+        padding: "8px 11px",
         borderRadius: 999,
         fontSize: 12,
         fontWeight: 850,
         background: green ? "#e7f8ef" : "#eef2f7",
         color: green ? "#1f9d61" : "#49566f",
         whiteSpace: "nowrap",
+        maxWidth: "100%",
       }}
     >
       {text}
