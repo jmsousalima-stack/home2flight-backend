@@ -3,60 +3,93 @@ export default async function handler(req, res) {
   const apiKey = process.env.AVIATIONSTACK_API_KEY;
 
   if (!apiKey) {
-    return res.status(500).json({
-      success: false,
-      engine: "Home2Flight Unified Flight Intelligence Layer",
-      error: "AVIATIONSTACK_API_KEY is not configured.",
-    });
+    return res.status(200).json(
+      buildFallbackResponse({
+        flightNumber,
+        reason: "AVIATIONSTACK_API_KEY is not configured.",
+        providerReachable: false,
+      })
+    );
   }
 
   try {
-    const aviationstackUrl = `http://api.aviationstack.com/v1/flights?access_key=${apiKey}&flight_iata=${flightNumber}`;
+    const url = new URL("http://api.aviationstack.com/v1/flights");
 
-    const response = await fetch(aviationstackUrl);
-    const rawData = await response.json();
+    url.searchParams.set("access_key", apiKey);
+    url.searchParams.set("flight_iata", flightNumber);
+
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    const responseText = await response.text();
+
+    let rawData = null;
+
+    try {
+      rawData = JSON.parse(responseText);
+    } catch (parseError) {
+      return res.status(200).json(
+        buildFallbackResponse({
+          flightNumber,
+          reason: "Provider returned non-JSON response.",
+          providerReachable: true,
+          providerStatus: response.status,
+          providerRawPreview: responseText.slice(0, 300),
+        })
+      );
+    }
+
+    if (!response.ok) {
+      return res.status(200).json(
+        buildFallbackResponse({
+          flightNumber,
+          reason: "Provider returned HTTP error.",
+          providerReachable: true,
+          providerStatus: response.status,
+          providerResponse: sanitizeProviderResponse(rawData),
+        })
+      );
+    }
+
+    if (rawData?.error) {
+      return res.status(200).json(
+        buildFallbackResponse({
+          flightNumber,
+          reason: "Provider returned API error.",
+          providerReachable: true,
+          providerStatus: response.status,
+          providerResponse: sanitizeProviderResponse(rawData),
+        })
+      );
+    }
 
     const flightData = rawData?.data?.[0];
 
     if (!flightData) {
-      return res.status(404).json({
-        success: false,
-        generatedAt: new Date().toISOString(),
-        engine: "Home2Flight Unified Flight Intelligence Layer",
-        version: "0.2.0",
-        flight: {
-          number: flightNumber,
-        },
-        reliability: {
-          score: 25,
-          trustLevel: "low",
-          sourceType: "aviationstack",
-          liveDataActive: true,
-          limitations: [
-            "Não foi encontrado voo correspondente.",
-            "O número do voo pode estar incorreto ou fora da janela disponível.",
-          ],
-        },
-        intelligenceSummary: {
-          operationalStatus: "unknown",
-          delayRisk: "unknown",
-          recommendationImpact: "manual_validation_required",
-          summary:
-            "Não foi possível obter dados reais para este voo. A timeline deve pedir validação manual.",
-        },
-        rawProviderStatus: rawData,
-      });
+      return res.status(200).json(
+        buildFallbackResponse({
+          flightNumber,
+          reason: "No matching flight found in provider response.",
+          providerReachable: true,
+          providerStatus: response.status,
+          providerResponse: sanitizeProviderResponse(rawData),
+        })
+      );
     }
 
     const departureDelay =
-      flightData?.departure?.delay ??
+      normalizeDelay(flightData?.departure?.delay) ??
       calculateDelayMinutes(
         flightData?.departure?.scheduled,
         flightData?.departure?.estimated
       );
 
     const arrivalDelay =
-      flightData?.arrival?.delay ??
+      normalizeDelay(flightData?.arrival?.delay) ??
       calculateDelayMinutes(
         flightData?.arrival?.scheduled,
         flightData?.arrival?.estimated
@@ -75,14 +108,16 @@ export default async function handler(req, res) {
     const delayRisk = getDelayRisk(departureDelay, flightStatus);
     const recommendationImpact = getRecommendationImpact(delayRisk);
 
-    const flightIntelligence = {
+    return res.status(200).json({
       success: true,
       generatedAt: new Date().toISOString(),
       engine: "Home2Flight Unified Flight Intelligence Layer",
-      version: "0.2.0",
+      version: "0.3.0",
       provider: {
         name: "AviationStack",
         liveDataActive: true,
+        providerReachable: true,
+        providerStatus: response.status,
       },
       flight: {
         number: flightData?.flight?.iata || flightNumber,
@@ -142,19 +177,118 @@ export default async function handler(req, res) {
           arrivalAirport: flightData?.arrival?.iata,
         }),
       },
-    };
-
-    return res.status(200).json(flightIntelligence);
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      generatedAt: new Date().toISOString(),
-      engine: "Home2Flight Unified Flight Intelligence Layer",
-      version: "0.2.0",
-      error: "Failed to fetch live flight intelligence.",
-      details: error.message,
     });
+  } catch (error) {
+    return res.status(200).json(
+      buildFallbackResponse({
+        flightNumber,
+        reason: "Provider fetch failed.",
+        providerReachable: false,
+        errorMessage: error?.message || "Unknown error",
+      })
+    );
   }
+}
+
+function buildFallbackResponse({
+  flightNumber,
+  reason,
+  providerReachable,
+  providerStatus = null,
+  providerResponse = null,
+  providerRawPreview = null,
+  errorMessage = null,
+}) {
+  return {
+    success: false,
+    generatedAt: new Date().toISOString(),
+    engine: "Home2Flight Unified Flight Intelligence Layer",
+    version: "0.3.0",
+    provider: {
+      name: "AviationStack",
+      liveDataActive: false,
+      providerReachable,
+      providerStatus,
+    },
+    flight: {
+      number: flightNumber,
+      airline: {
+        name: null,
+        code: null,
+      },
+      status: "unknown",
+      route: {
+        from: {
+          code: null,
+          name: null,
+        },
+        to: {
+          code: null,
+          name: null,
+        },
+      },
+      departure: {
+        scheduled: null,
+        estimated: null,
+        actual: null,
+        delayMinutes: null,
+        terminal: null,
+        gate: null,
+      },
+      arrival: {
+        scheduled: null,
+        estimated: null,
+        actual: null,
+        delayMinutes: null,
+        terminal: null,
+        gate: null,
+      },
+    },
+    reliability: {
+      score: 25,
+      trustLevel: "low",
+      sourceType: "provider_fallback",
+      liveDataActive: false,
+      limitations: [
+        "Dados reais de voo indisponíveis neste momento.",
+        "A timeline deve usar fallback seguro e pedir validação manual.",
+        "O motor deve manter monitorização até existir fonte confirmada.",
+      ],
+    },
+    intelligenceSummary: {
+      operationalStatus: "unknown",
+      delayRisk: "unknown",
+      recommendationImpact: "manual_validation_required",
+      summary:
+        "Não foi possível obter dados reais fiáveis para este voo. A Home2Flight deve aplicar uma lógica conservadora e pedir validação manual.",
+    },
+    diagnostics: {
+      reason,
+      errorMessage,
+      providerRawPreview,
+      providerResponse,
+    },
+  };
+}
+
+function sanitizeProviderResponse(rawData) {
+  if (!rawData) return null;
+
+  return {
+    pagination: rawData.pagination || null,
+    error: rawData.error || null,
+    dataCount: Array.isArray(rawData.data) ? rawData.data.length : null,
+  };
+}
+
+function normalizeDelay(value) {
+  if (typeof value === "number") return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+
+  return null;
 }
 
 function calculateDelayMinutes(scheduled, estimated) {
