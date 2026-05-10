@@ -72,6 +72,15 @@ function getRecalculationLabel(status) {
   }
 }
 
+function getLiveLabel(item) {
+  if (item.recalculationStatus === "risk_adjusted") return "Risk adjusted";
+  if (item.recalculationStatus === "recalculated") return "Recalculated";
+  if (item.recalculationStatus === "monitoring") return "Monitoring";
+  if (item.status === "risk") return "Live risk";
+  if (item.status === "buffer") return "Live buffer";
+  return "Active";
+}
+
 function getSignalStyle(severity = "medium") {
   switch (severity) {
     case "high":
@@ -83,6 +92,12 @@ function getSignalStyle(severity = "medium") {
     default:
       return { bg: "#eef2f7", color: "#53627c" };
   }
+}
+
+function getVisibleFlags(item) {
+  const flags = item.intelligenceFlags || item.operationalSignals || [];
+
+  return flags.slice(0, item.status === "risk" ? 3 : 2);
 }
 
 export default function TimelineCard({ timeline = [] }) {
@@ -99,6 +114,35 @@ export default function TimelineCard({ timeline = [] }) {
         boxSizing: "border-box",
       }}
     >
+      <style>{`
+        @keyframes h2fPulse {
+          0% {
+            transform: scale(1);
+            opacity: 0.75;
+          }
+          50% {
+            transform: scale(1.9);
+            opacity: 0.15;
+          }
+          100% {
+            transform: scale(1);
+            opacity: 0.75;
+          }
+        }
+
+        @keyframes h2fGlow {
+          0% {
+            box-shadow: 0 18px 38px rgba(15,23,42,0.08);
+          }
+          50% {
+            box-shadow: 0 22px 48px rgba(15,23,42,0.14);
+          }
+          100% {
+            box-shadow: 0 18px 38px rgba(15,23,42,0.08);
+          }
+        }
+      `}</style>
+
       <div style={{ marginBottom: 28 }}>
         <h2
           style={{
@@ -140,15 +184,14 @@ export default function TimelineCard({ timeline = [] }) {
           const accent = getAccentColor(item.status);
           const borderColor = getBorderColor(item.status);
           const softBg = getSoftBackground(item.status);
+          const confidenceScore = item.confidenceScore ?? 0;
+          const flags = getVisibleFlags(item);
+          const isLive = item.status === "risk" || item.status === "buffer";
 
           const time = new Date(item.time).toLocaleTimeString("pt-PT", {
             hour: "2-digit",
             minute: "2-digit",
           });
-
-          const isLive = item.status === "risk" || item.status === "buffer";
-          const confidenceScore = item.confidenceScore ?? 0;
-          const flags = item.intelligenceFlags || item.operationalSignals || [];
 
           return (
             <article
@@ -158,9 +201,12 @@ export default function TimelineCard({ timeline = [] }) {
                 border: `2px solid ${borderColor}`,
                 borderRadius: 30,
                 padding: 18,
-                boxShadow: "0 14px 36px rgba(15,23,42,0.06)",
+                boxShadow: isLive
+                  ? `0 18px 44px ${accent}1f`
+                  : "0 14px 36px rgba(15,23,42,0.06)",
                 position: "relative",
                 overflow: "hidden",
+                animation: isLive ? "h2fGlow 3.8s ease-in-out infinite" : "none",
               }}
             >
               <div
@@ -169,9 +215,21 @@ export default function TimelineCard({ timeline = [] }) {
                   top: 0,
                   left: 0,
                   right: 0,
-                  height: 5,
+                  height: isLive ? 6 : 4,
                   background: accent,
-                  opacity: isLive ? 0.95 : 0.45,
+                  opacity: isLive ? 0.95 : 0.36,
+                }}
+              />
+
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  right: 0,
+                  width: 120,
+                  height: 120,
+                  background: `radial-gradient(circle, ${accent}22 0%, transparent 62%)`,
+                  pointerEvents: "none",
                 }}
               />
 
@@ -216,33 +274,7 @@ export default function TimelineCard({ timeline = [] }) {
                   Step {index + 1}
                 </div>
 
-                <div
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 7,
-                    background: isLive ? softBg : "#eef2f7",
-                    color: isLive ? accent : "#64748b",
-                    borderRadius: 999,
-                    padding: "7px 11px",
-                    fontSize: 10,
-                    fontWeight: 950,
-                    letterSpacing: 1.2,
-                    whiteSpace: "nowrap",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 7,
-                      height: 7,
-                      borderRadius: 999,
-                      background: isLive ? accent : "#22c55e",
-                      boxShadow: isLive ? `0 0 10px ${accent}` : "none",
-                    }}
-                  />
-                  {isLive ? "LIVE" : "ACTIVE"}
-                </div>
+                <LiveBadge item={item} accent={accent} softBg={softBg} />
               </div>
 
               <div
@@ -363,7 +395,7 @@ export default function TimelineCard({ timeline = [] }) {
                         color: "#334155",
                         fontSize: 14,
                         lineHeight: 1.35,
-                        fontWeight: 700,
+                        fontWeight: 750,
                       }}
                     >
                       {item.liveInsight || item.reasoning}
@@ -375,12 +407,14 @@ export default function TimelineCard({ timeline = [] }) {
                       display: "flex",
                       flexWrap: "wrap",
                       gap: 7,
-                      marginBottom: 13,
+                      marginBottom: flags.length > 0 ? 12 : 14,
                     }}
                   >
                     <Tag text={getRecalculationLabel(item.recalculationStatus)} />
                     {item.source && <Tag text={item.source} />}
-                    {item.buffer && <Tag text={item.buffer} green />}
+                    {item.buffer && item.buffer !== "Pending" && (
+                      <Tag text={item.buffer} green />
+                    )}
                   </div>
 
                   {flags.length > 0 && (
@@ -455,6 +489,54 @@ export default function TimelineCard({ timeline = [] }) {
         })}
       </div>
     </section>
+  );
+}
+
+function LiveBadge({ item, accent, softBg }) {
+  const isLive = item.status === "risk" || item.status === "buffer";
+
+  return (
+    <div
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        background: isLive ? softBg : "#eef2f7",
+        color: isLive ? accent : "#64748b",
+        borderRadius: 999,
+        padding: "7px 11px",
+        fontSize: 10,
+        fontWeight: 950,
+        letterSpacing: 1.1,
+        whiteSpace: "nowrap",
+        textTransform: "uppercase",
+      }}
+    >
+      <span
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: 999,
+          background: isLive ? accent : "#22c55e",
+          boxShadow: isLive ? `0 0 12px ${accent}` : "none",
+          position: "relative",
+          display: "inline-block",
+        }}
+      >
+        {isLive && (
+          <span
+            style={{
+              position: "absolute",
+              inset: 0,
+              borderRadius: 999,
+              background: accent,
+              animation: "h2fPulse 1.8s ease-in-out infinite",
+            }}
+          />
+        )}
+      </span>
+      {getLiveLabel(item)}
+    </div>
   );
 }
 
