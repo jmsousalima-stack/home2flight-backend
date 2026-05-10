@@ -4,10 +4,8 @@ function getBorderColor(status) {
   switch (status) {
     case "risk":
       return "#f3a6b2";
-
     case "buffer":
       return "#ead27a";
-
     default:
       return "#b9ecff";
   }
@@ -17,12 +15,21 @@ function getAccentColor(status) {
   switch (status) {
     case "risk":
       return "#e5485d";
-
     case "buffer":
       return "#c99600";
-
     default:
       return "#1da9e8";
+  }
+}
+
+function getSoftBackground(status) {
+  switch (status) {
+    case "risk":
+      return "#fff4f6";
+    case "buffer":
+      return "#fff9e6";
+    default:
+      return "#eefcff";
   }
 }
 
@@ -30,35 +37,30 @@ function getStatusLabel(status) {
   switch (status) {
     case "risk":
       return "RISK";
-
     case "buffer":
       return "BUFFER";
-
     default:
       return "READY";
   }
 }
 
-function getSignalStyle(type = "neutral") {
-  switch (type) {
-    case "risk":
+function getSignalStyle(severity = "medium") {
+  switch (severity) {
+    case "high":
       return {
         bg: "#fff1f2",
         color: "#dc3545",
       };
-
-    case "warning":
+    case "medium":
       return {
         bg: "#fff8e6",
         color: "#b77900",
       };
-
-    case "good":
+    case "low":
       return {
         bg: "#edfdf3",
         color: "#1f9d61",
       };
-
     default:
       return {
         bg: "#eef2f7",
@@ -72,27 +74,23 @@ export default function TimelineCard({ timeline = [] }) {
     <section
       style={{
         background: "#f7f7fb",
-        borderTopLeftRadius: 44,
-        borderTopRightRadius: 44,
+        borderTopLeftRadius: 42,
+        borderTopRightRadius: 42,
         marginTop: 34,
-        padding: "42px 22px 140px",
+        padding: "34px 18px 120px",
         position: "relative",
         overflow: "hidden",
       }}
     >
-      <div
-        style={{
-          marginBottom: 36,
-        }}
-      >
+      <div style={{ marginBottom: 34 }}>
         <h2
           style={{
-            fontSize: "clamp(48px, 12vw, 72px)",
-            lineHeight: 0.92,
-            letterSpacing: "-3px",
+            fontSize: "clamp(38px, 10vw, 58px)",
+            lineHeight: 0.94,
+            letterSpacing: "-2.2px",
             fontWeight: 950,
             color: "#04133a",
-            marginBottom: 18,
+            margin: "0 0 16px",
           }}
         >
           Operational timeline
@@ -100,10 +98,10 @@ export default function TimelineCard({ timeline = [] }) {
 
         <p
           style={{
-            fontSize: 19,
-            lineHeight: 1.45,
+            fontSize: 17,
+            lineHeight: 1.42,
             color: "#707b97",
-            maxWidth: 500,
+            margin: 0,
           }}
         >
           Plano dinâmico por risco, voo, transporte e sinais operacionais.
@@ -113,12 +111,12 @@ export default function TimelineCard({ timeline = [] }) {
       <div
         style={{
           position: "absolute",
-          left: 72,
-          top: 220,
-          bottom: 80,
+          left: 38,
+          top: 178,
+          bottom: 84,
           width: 2,
           background:
-            "linear-gradient(to bottom, rgba(29,169,232,0.25), rgba(29,169,232,0.06))",
+            "linear-gradient(to bottom, rgba(29,169,232,0.25), rgba(29,169,232,0.05))",
         }}
       />
 
@@ -126,81 +124,89 @@ export default function TimelineCard({ timeline = [] }) {
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: 26,
+          gap: 24,
           position: "relative",
           zIndex: 2,
         }}
       >
-        {timeline.map((item, index) => {
+        {timeline.map((item) => {
           const borderColor = getBorderColor(item.status);
           const accent = getAccentColor(item.status);
+          const softBg = getSoftBackground(item.status);
 
           const time = new Date(item.time).toLocaleTimeString("pt-PT", {
             hour: "2-digit",
             minute: "2-digit",
           });
 
-          const isCurrent =
+          const isLiveStep =
             item.status === "risk" || item.status === "buffer";
 
           return (
-            <div
+            <article
               key={item.id}
               style={{
                 position: "relative",
-                paddingLeft: 34,
+                paddingLeft: 28,
               }}
             >
               <div
                 style={{
                   position: "absolute",
-                  left: 18,
-                  top: 54,
-                  width: 14,
-                  height: 14,
+                  left: 0,
+                  top: 38,
+                  width: 16,
+                  height: 16,
                   borderRadius: 999,
                   background: accent,
                   boxShadow: `0 0 22px ${accent}`,
-                  border: "3px solid white",
-                  zIndex: 3,
+                  border: "4px solid #ffffff",
+                  zIndex: 4,
                 }}
               />
 
               <div
                 style={{
-                  background: "rgba(255,255,255,0.88)",
+                  background: "rgba(255,255,255,0.92)",
                   backdropFilter: "blur(18px)",
                   WebkitBackdropFilter: "blur(18px)",
                   border: `2px solid ${borderColor}`,
-                  borderRadius: 34,
-                  padding: 22,
+                  borderRadius: 32,
+                  padding: 20,
                   boxShadow:
-                    "0 10px 30px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,0.6)",
+                    "0 12px 34px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.7)",
                   position: "relative",
                   overflow: "hidden",
                 }}
               >
-                {isCurrent && (
+                {isLiveStep && (
                   <div
                     style={{
-                      position: "absolute",
-                      top: 18,
-                      right: 18,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 7,
                       background:
                         item.status === "risk"
-                          ? "rgba(229,72,93,0.12)"
-                          : "rgba(201,150,0,0.12)",
-                      color:
-                        item.status === "risk"
-                          ? "#d7263d"
-                          : "#b77900",
+                          ? "rgba(229,72,93,0.1)"
+                          : "rgba(201,150,0,0.1)",
+                      color: accent,
                       borderRadius: 999,
-                      padding: "8px 12px",
-                      fontSize: 11,
-                      fontWeight: 900,
-                      letterSpacing: 1,
+                      padding: "8px 11px",
+                      fontSize: 10,
+                      fontWeight: 950,
+                      letterSpacing: 1.2,
+                      marginBottom: 16,
                     }}
                   >
+                    <span
+                      style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: 999,
+                        background: accent,
+                        boxShadow: `0 0 12px ${accent}`,
+                      }}
+                    />
                     LIVE STEP
                   </div>
                 )}
@@ -208,16 +214,16 @@ export default function TimelineCard({ timeline = [] }) {
                 <div
                   style={{
                     display: "flex",
+                    flexDirection: "column",
                     gap: 18,
-                    alignItems: "flex-start",
                   }}
                 >
                   <div
                     style={{
-                      minWidth: 104,
-                      height: 104,
-                      borderRadius: 28,
-                      background: `${borderColor}33`,
+                      width: 112,
+                      height: 112,
+                      borderRadius: 30,
+                      background: softBg,
                       display: "flex",
                       flexDirection: "column",
                       alignItems: "center",
@@ -226,7 +232,7 @@ export default function TimelineCard({ timeline = [] }) {
                   >
                     <div
                       style={{
-                        fontSize: 24,
+                        fontSize: 26,
                         lineHeight: 1,
                         fontWeight: 950,
                         color: accent,
@@ -239,8 +245,8 @@ export default function TimelineCard({ timeline = [] }) {
                     <div
                       style={{
                         fontSize: 13,
-                        fontWeight: 900,
-                        letterSpacing: 1.4,
+                        fontWeight: 950,
+                        letterSpacing: 1.6,
                         color: accent,
                       }}
                     >
@@ -248,38 +254,36 @@ export default function TimelineCard({ timeline = [] }) {
                     </div>
                   </div>
 
-                  <div style={{ flex: 1 }}>
+                  <div style={{ width: "100%" }}>
                     <div
                       style={{
                         display: "flex",
-                        alignItems: "flex-start",
-                        justifyContent: "space-between",
-                        gap: 12,
-                        marginBottom: 10,
+                        flexDirection: "column",
+                        gap: 10,
+                        marginBottom: 14,
                       }}
                     >
-                      <div>
-                        <h3
-                          style={{
-                            fontSize: 24,
-                            lineHeight: 1.02,
-                            fontWeight: 900,
-                            color: "#061235",
-                            marginBottom: 8,
-                          }}
-                        >
-                          {item.title}
-                        </h3>
+                      <h3
+                        style={{
+                          fontSize: 28,
+                          lineHeight: 1.02,
+                          fontWeight: 950,
+                          color: "#061235",
+                          margin: 0,
+                          letterSpacing: "-0.8px",
+                        }}
+                      >
+                        {item.title}
+                      </h3>
 
-                        <div
-                          style={{
-                            fontSize: 18,
-                            fontWeight: 700,
-                            color: "#8189a1",
-                          }}
-                        >
-                          {item.category}
-                        </div>
+                      <div
+                        style={{
+                          fontSize: 17,
+                          fontWeight: 800,
+                          color: "#8189a1",
+                        }}
+                      >
+                        {item.category}
                       </div>
                     </div>
 
@@ -287,21 +291,13 @@ export default function TimelineCard({ timeline = [] }) {
                       style={{
                         display: "flex",
                         flexWrap: "wrap",
-                        gap: 10,
-                        marginBottom: 16,
+                        gap: 8,
+                        marginBottom: 14,
                       }}
                     >
-                      {item.source && (
-                        <Tag text={item.source} />
-                      )}
-
-                      {item.confidence && (
-                        <Tag text={item.confidence} />
-                      )}
-
-                      {item.buffer && (
-                        <Tag text={item.buffer} green />
-                      )}
+                      {item.source && <Tag text={item.source} />}
+                      {item.confidence && <Tag text={item.confidence} />}
+                      {item.buffer && <Tag text={item.buffer} green />}
                     </div>
 
                     {item.operationalSignals?.length > 0 && (
@@ -310,26 +306,27 @@ export default function TimelineCard({ timeline = [] }) {
                           display: "flex",
                           flexWrap: "wrap",
                           gap: 8,
-                          marginBottom: 18,
+                          marginBottom: 16,
                         }}
                       >
-                        {item.operationalSignals.map((signal, signalIndex) => {
-                          const signalStyle = getSignalStyle(signal.type);
+                        {item.operationalSignals.map((signal, index) => {
+                          const signalStyle = getSignalStyle(signal.severity);
 
                           return (
-                            <div
-                              key={signalIndex}
+                            <span
+                              key={index}
                               style={{
                                 background: signalStyle.bg,
                                 color: signalStyle.color,
-                                padding: "10px 14px",
+                                padding: "9px 12px",
                                 borderRadius: 999,
-                                fontSize: 13,
-                                fontWeight: 800,
+                                fontSize: 12,
+                                lineHeight: 1.2,
+                                fontWeight: 850,
                               }}
                             >
                               {signal.label}
-                            </div>
+                            </span>
                           );
                         })}
                       </div>
@@ -337,10 +334,10 @@ export default function TimelineCard({ timeline = [] }) {
 
                     <p
                       style={{
-                        fontSize: 18,
-                        lineHeight: 1.48,
+                        fontSize: 16,
+                        lineHeight: 1.45,
                         color: "#667085",
-                        marginBottom: 18,
+                        margin: "0 0 16px",
                       }}
                     >
                       {item.reasoning}
@@ -348,30 +345,29 @@ export default function TimelineCard({ timeline = [] }) {
 
                     <div
                       style={{
-                        display: "flex",
+                        display: "inline-flex",
                         alignItems: "center",
                         gap: 8,
                         color: "#94a3b8",
                         fontSize: 13,
-                        fontWeight: 700,
+                        fontWeight: 800,
                       }}
                     >
-                      <div
+                      <span
                         style={{
                           width: 8,
                           height: 8,
                           borderRadius: 999,
                           background: "#22c55e",
-                          boxShadow: "0 0 10px rgba(34,197,94,0.7)",
+                          boxShadow: "0 0 10px rgba(34,197,94,0.75)",
                         }}
                       />
-
                       Updated 2 min ago
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
+            </article>
           );
         })}
       </div>
@@ -381,17 +377,18 @@ export default function TimelineCard({ timeline = [] }) {
 
 function Tag({ text, green = false }) {
   return (
-    <div
+    <span
       style={{
-        padding: "10px 14px",
+        padding: "8px 12px",
         borderRadius: 999,
-        fontSize: 14,
-        fontWeight: 800,
+        fontSize: 12,
+        fontWeight: 850,
         background: green ? "#e7f8ef" : "#eef2f7",
         color: green ? "#1f9d61" : "#4b5875",
+        whiteSpace: "nowrap",
       }}
     >
       {text}
-    </div>
+    </span>
   );
 }
