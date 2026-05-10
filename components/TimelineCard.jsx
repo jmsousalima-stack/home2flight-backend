@@ -168,6 +168,15 @@ export default function TimelineCard({ timeline = [] }) {
                   <Tag text={item.confidence} />
                   <Tag text={item.source} />
                   <Tag text={item.buffer} green />
+
+                  {item.operationalSignals?.map((signal, index) => (
+                    <Tag
+                      key={index}
+                      text={signal.label}
+                      danger={signal.severity === "high"}
+                      warning={signal.severity === "medium"}
+                    />
+                  ))}
                 </div>
 
                 <p
@@ -189,16 +198,34 @@ export default function TimelineCard({ timeline = [] }) {
   );
 }
 
-function Tag({ text, green = false }) {
+function Tag({ text, green = false, danger = false, warning = false }) {
+  let background = "#eef0f6";
+  let color = "#44506b";
+
+  if (green) {
+    background = "#e7f7ee";
+    color = "#229b63";
+  }
+
+  if (warning) {
+    background = "#fff7e6";
+    color = "#b77900";
+  }
+
+  if (danger) {
+    background = "#fff0f1";
+    color = "#d62839";
+  }
+
   return (
     <span
       style={{
-        padding: "6px 9px",
+        padding: "6px 10px",
         borderRadius: 999,
         fontSize: 11,
         fontWeight: 800,
-        background: green ? "#e7f7ee" : "#eef0f6",
-        color: green ? "#229b63" : "#44506b",
+        background,
+        color,
         whiteSpace: "nowrap",
       }}
     >
