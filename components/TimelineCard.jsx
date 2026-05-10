@@ -44,6 +44,34 @@ function getStatusLabel(status) {
   }
 }
 
+function getTrustLabel(trustLevel) {
+  switch (trustLevel) {
+    case "high":
+      return "High trust";
+    case "medium":
+      return "Medium trust";
+    case "low":
+      return "Low trust";
+    default:
+      return "Trust pending";
+  }
+}
+
+function getRecalculationLabel(status) {
+  switch (status) {
+    case "risk_adjusted":
+      return "Risk adjusted";
+    case "recalculated":
+      return "Recalculated";
+    case "monitoring":
+      return "Monitoring";
+    case "stable":
+      return "Stable";
+    default:
+      return "Live check";
+  }
+}
+
 function getSignalStyle(severity = "medium") {
   switch (severity) {
     case "high":
@@ -96,7 +124,8 @@ export default function TimelineCard({ timeline = [] }) {
             maxWidth: 340,
           }}
         >
-          Plano dinâmico por risco, voo, transporte e sinais operacionais.
+          Plano dinâmico recalculado por voo, transporte, aeroporto e confiança
+          operacional.
         </p>
       </div>
 
@@ -118,6 +147,8 @@ export default function TimelineCard({ timeline = [] }) {
           });
 
           const isLive = item.status === "risk" || item.status === "buffer";
+          const confidenceScore = item.confidenceScore ?? 0;
+          const flags = item.intelligenceFlags || item.operationalSignals || [];
 
           return (
             <article
@@ -147,10 +178,10 @@ export default function TimelineCard({ timeline = [] }) {
               <div
                 style={{
                   display: "flex",
-                  alignItems: "center",
                   justifyContent: "space-between",
                   gap: 12,
                   marginBottom: 18,
+                  alignItems: "center",
                 }}
               >
                 <div
@@ -185,37 +216,33 @@ export default function TimelineCard({ timeline = [] }) {
                   Step {index + 1}
                 </div>
 
-                {isLive && (
-                  <div
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 7,
+                    background: isLive ? softBg : "#eef2f7",
+                    color: isLive ? accent : "#64748b",
+                    borderRadius: 999,
+                    padding: "7px 11px",
+                    fontSize: 10,
+                    fontWeight: 950,
+                    letterSpacing: 1.2,
+                    whiteSpace: "nowrap",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  <span
                     style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 7,
-                      background:
-                        item.status === "risk"
-                          ? "rgba(229,72,93,0.1)"
-                          : "rgba(201,151,0,0.1)",
-                      color: accent,
+                      width: 7,
+                      height: 7,
                       borderRadius: 999,
-                      padding: "7px 11px",
-                      fontSize: 10,
-                      fontWeight: 950,
-                      letterSpacing: 1.3,
-                      whiteSpace: "nowrap",
+                      background: isLive ? accent : "#22c55e",
+                      boxShadow: isLive ? `0 0 10px ${accent}` : "none",
                     }}
-                  >
-                    <span
-                      style={{
-                        width: 7,
-                        height: 7,
-                        borderRadius: 999,
-                        background: accent,
-                        boxShadow: `0 0 10px ${accent}`,
-                      }}
-                    />
-                    LIVE
-                  </div>
-                )}
+                  />
+                  {isLive ? "LIVE" : "ACTIVE"}
+                </div>
               </div>
 
               <div
@@ -290,27 +317,82 @@ export default function TimelineCard({ timeline = [] }) {
 
                   <div
                     style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: 8,
+                      marginBottom: 13,
+                    }}
+                  >
+                    <MiniMetric
+                      label="Confidence"
+                      value={`${confidenceScore}%`}
+                      accent={accent}
+                    />
+
+                    <MiniMetric
+                      label="Trust"
+                      value={getTrustLabel(item.trustLevel)}
+                      accent="#64748b"
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      background: "#f8fafc",
+                      border: "1px solid #eef2f7",
+                      borderRadius: 18,
+                      padding: 13,
+                      marginBottom: 13,
+                    }}
+                  >
+                    <div
+                      style={{
+                        color: "#64748b",
+                        fontSize: 11,
+                        fontWeight: 950,
+                        letterSpacing: 1.2,
+                        textTransform: "uppercase",
+                        marginBottom: 6,
+                      }}
+                    >
+                      Engine insight
+                    </div>
+
+                    <div
+                      style={{
+                        color: "#334155",
+                        fontSize: 14,
+                        lineHeight: 1.35,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {item.liveInsight || item.reasoning}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
                       display: "flex",
                       flexWrap: "wrap",
                       gap: 7,
-                      marginBottom: 12,
+                      marginBottom: 13,
                     }}
                   >
+                    <Tag text={getRecalculationLabel(item.recalculationStatus)} />
                     {item.source && <Tag text={item.source} />}
-                    {item.confidence && <Tag text={item.confidence} />}
                     {item.buffer && <Tag text={item.buffer} green />}
                   </div>
 
-                  {item.operationalSignals?.length > 0 && (
+                  {flags.length > 0 && (
                     <div
                       style={{
                         display: "flex",
                         flexWrap: "wrap",
                         gap: 7,
-                        marginBottom: 13,
+                        marginBottom: 14,
                       }}
                     >
-                      {item.operationalSignals.map((signal, signalIndex) => {
+                      {flags.map((signal, signalIndex) => {
                         const signalStyle = getSignalStyle(signal.severity);
 
                         return (
@@ -364,7 +446,7 @@ export default function TimelineCard({ timeline = [] }) {
                         flexShrink: 0,
                       }}
                     />
-                    Updated 2 min ago
+                    Updated {item.lastUpdatedMinutesAgo ?? 2} min ago
                   </div>
                 </div>
               </div>
@@ -373,6 +455,43 @@ export default function TimelineCard({ timeline = [] }) {
         })}
       </div>
     </section>
+  );
+}
+
+function MiniMetric({ label, value, accent }) {
+  return (
+    <div
+      style={{
+        background: "#f8fafc",
+        border: "1px solid #eef2f7",
+        borderRadius: 16,
+        padding: "10px 11px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 900,
+          letterSpacing: 1,
+          color: "#94a3b8",
+          textTransform: "uppercase",
+          marginBottom: 4,
+        }}
+      >
+        {label}
+      </div>
+
+      <div
+        style={{
+          fontSize: 13,
+          lineHeight: 1.15,
+          fontWeight: 900,
+          color: accent,
+        }}
+      >
+        {value}
+      </div>
+    </div>
   );
 }
 
