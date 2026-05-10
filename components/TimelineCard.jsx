@@ -57,21 +57,6 @@ function getTrustLabel(trustLevel) {
   }
 }
 
-function getRecalculationLabel(status) {
-  switch (status) {
-    case "risk_adjusted":
-      return "Risk adjusted";
-    case "recalculated":
-      return "Recalculated";
-    case "monitoring":
-      return "Monitoring";
-    case "stable":
-      return "Stable";
-    default:
-      return "Live check";
-  }
-}
-
 function getLiveLabel(item) {
   if (item.recalculationStatus === "risk_adjusted") return "Risk adjusted";
   if (item.recalculationStatus === "recalculated") return "Recalculated";
@@ -79,6 +64,11 @@ function getLiveLabel(item) {
   if (item.status === "risk") return "Live risk";
   if (item.status === "buffer") return "Live buffer";
   return "Active";
+}
+
+function getPrimaryFlag(item) {
+  const flags = item.intelligenceFlags || item.operationalSignals || [];
+  return flags[0] || null;
 }
 
 function getSignalStyle(severity = "medium") {
@@ -92,12 +82,6 @@ function getSignalStyle(severity = "medium") {
     default:
       return { bg: "#eef2f7", color: "#53627c" };
   }
-}
-
-function getVisibleFlags(item) {
-  const flags = item.intelligenceFlags || item.operationalSignals || [];
-
-  return flags.slice(0, item.status === "risk" ? 3 : 2);
 }
 
 export default function TimelineCard({ timeline = [] }) {
@@ -116,30 +100,15 @@ export default function TimelineCard({ timeline = [] }) {
     >
       <style>{`
         @keyframes h2fPulse {
-          0% {
-            transform: scale(1);
-            opacity: 0.75;
-          }
-          50% {
-            transform: scale(1.9);
-            opacity: 0.15;
-          }
-          100% {
-            transform: scale(1);
-            opacity: 0.75;
-          }
+          0% { transform: scale(1); opacity: 0.75; }
+          50% { transform: scale(1.85); opacity: 0.14; }
+          100% { transform: scale(1); opacity: 0.75; }
         }
 
         @keyframes h2fGlow {
-          0% {
-            box-shadow: 0 18px 38px rgba(15,23,42,0.08);
-          }
-          50% {
-            box-shadow: 0 22px 48px rgba(15,23,42,0.14);
-          }
-          100% {
-            box-shadow: 0 18px 38px rgba(15,23,42,0.08);
-          }
+          0% { box-shadow: 0 18px 38px rgba(15,23,42,0.08); }
+          50% { box-shadow: 0 22px 48px rgba(15,23,42,0.13); }
+          100% { box-shadow: 0 18px 38px rgba(15,23,42,0.08); }
         }
       `}</style>
 
@@ -173,20 +142,14 @@ export default function TimelineCard({ timeline = [] }) {
         </p>
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 18,
-        }}
-      >
+      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
         {timeline.map((item, index) => {
           const accent = getAccentColor(item.status);
           const borderColor = getBorderColor(item.status);
           const softBg = getSoftBackground(item.status);
-          const confidenceScore = item.confidenceScore ?? 0;
-          const flags = getVisibleFlags(item);
           const isLive = item.status === "risk" || item.status === "buffer";
+          const confidenceScore = item.confidenceScore ?? 0;
+          const primaryFlag = getPrimaryFlag(item);
 
           const time = new Date(item.time).toLocaleTimeString("pt-PT", {
             hour: "2-digit",
@@ -217,18 +180,18 @@ export default function TimelineCard({ timeline = [] }) {
                   right: 0,
                   height: isLive ? 6 : 4,
                   background: accent,
-                  opacity: isLive ? 0.95 : 0.36,
+                  opacity: isLive ? 0.95 : 0.32,
                 }}
               />
 
               <div
                 style={{
                   position: "absolute",
-                  top: 0,
-                  right: 0,
-                  width: 120,
-                  height: 120,
-                  background: `radial-gradient(circle, ${accent}22 0%, transparent 62%)`,
+                  top: -20,
+                  right: -20,
+                  width: 130,
+                  height: 130,
+                  background: `radial-gradient(circle, ${accent}20 0%, transparent 64%)`,
                   pointerEvents: "none",
                 }}
               />
@@ -341,113 +304,34 @@ export default function TimelineCard({ timeline = [] }) {
                       fontSize: 16,
                       fontWeight: 800,
                       color: "#8b92ab",
-                      marginBottom: 12,
+                      marginBottom: 14,
                     }}
                   >
                     {item.category}
                   </div>
 
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: 8,
-                      marginBottom: 13,
-                    }}
-                  >
-                    <MiniMetric
-                      label="Confidence"
-                      value={`${confidenceScore}%`}
-                      accent={accent}
-                    />
-
-                    <MiniMetric
-                      label="Trust"
-                      value={getTrustLabel(item.trustLevel)}
-                      accent="#64748b"
-                    />
-                  </div>
-
-                  <div
-                    style={{
-                      background: "#f8fafc",
-                      border: "1px solid #eef2f7",
-                      borderRadius: 18,
-                      padding: 13,
-                      marginBottom: 13,
-                    }}
-                  >
-                    <div
-                      style={{
-                        color: "#64748b",
-                        fontSize: 11,
-                        fontWeight: 950,
-                        letterSpacing: 1.2,
-                        textTransform: "uppercase",
-                        marginBottom: 6,
-                      }}
-                    >
-                      Engine insight
-                    </div>
-
-                    <div
-                      style={{
-                        color: "#334155",
-                        fontSize: 14,
-                        lineHeight: 1.35,
-                        fontWeight: 750,
-                      }}
-                    >
-                      {item.liveInsight || item.reasoning}
-                    </div>
-                  </div>
+                  <ExecutiveInsight
+                    item={item}
+                    accent={accent}
+                    confidenceScore={confidenceScore}
+                  />
 
                   <div
                     style={{
                       display: "flex",
                       flexWrap: "wrap",
                       gap: 7,
-                      marginBottom: flags.length > 0 ? 12 : 14,
+                      marginBottom: primaryFlag ? 12 : 14,
                     }}
                   >
-                    <Tag text={getRecalculationLabel(item.recalculationStatus)} />
-                    {item.source && <Tag text={item.source} />}
+                    <Tag text={`${confidenceScore}% confidence`} accent={accent} />
+                    <Tag text={getTrustLabel(item.trustLevel)} />
                     {item.buffer && item.buffer !== "Pending" && (
                       <Tag text={item.buffer} green />
                     )}
                   </div>
 
-                  {flags.length > 0 && (
-                    <div
-                      style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 7,
-                        marginBottom: 14,
-                      }}
-                    >
-                      {flags.map((signal, signalIndex) => {
-                        const signalStyle = getSignalStyle(signal.severity);
-
-                        return (
-                          <span
-                            key={signalIndex}
-                            style={{
-                              background: signalStyle.bg,
-                              color: signalStyle.color,
-                              padding: "8px 11px",
-                              borderRadius: 999,
-                              fontSize: 12,
-                              fontWeight: 850,
-                              lineHeight: 1.2,
-                            }}
-                          >
-                            {signal.label}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
+                  {primaryFlag && <SignalPill signal={primaryFlag} />}
 
                   <p
                     style={{
@@ -489,6 +373,64 @@ export default function TimelineCard({ timeline = [] }) {
         })}
       </div>
     </section>
+  );
+}
+
+function ExecutiveInsight({ item, accent, confidenceScore }) {
+  return (
+    <div
+      style={{
+        background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+        border: "1px solid #e9eef6",
+        borderRadius: 20,
+        padding: 14,
+        marginBottom: 13,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          alignItems: "flex-start",
+          marginBottom: 10,
+        }}
+      >
+        <div
+          style={{
+            color: "#64748b",
+            fontSize: 11,
+            fontWeight: 950,
+            letterSpacing: 1.2,
+            textTransform: "uppercase",
+          }}
+        >
+          Engine decision
+        </div>
+
+        <div
+          style={{
+            color: accent,
+            fontSize: 12,
+            fontWeight: 950,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {confidenceScore}%
+        </div>
+      </div>
+
+      <div
+        style={{
+          color: "#263244",
+          fontSize: 15,
+          lineHeight: 1.38,
+          fontWeight: 800,
+        }}
+      >
+        {item.liveInsight || item.reasoning}
+      </div>
+    </div>
   );
 }
 
@@ -540,44 +482,29 @@ function LiveBadge({ item, accent, softBg }) {
   );
 }
 
-function MiniMetric({ label, value, accent }) {
+function SignalPill({ signal }) {
+  const signalStyle = getSignalStyle(signal.severity);
+
   return (
     <div
       style={{
-        background: "#f8fafc",
-        border: "1px solid #eef2f7",
-        borderRadius: 16,
-        padding: "10px 11px",
+        display: "inline-flex",
+        background: signalStyle.bg,
+        color: signalStyle.color,
+        padding: "8px 11px",
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 850,
+        lineHeight: 1.2,
+        marginBottom: 14,
       }}
     >
-      <div
-        style={{
-          fontSize: 10,
-          fontWeight: 900,
-          letterSpacing: 1,
-          color: "#94a3b8",
-          textTransform: "uppercase",
-          marginBottom: 4,
-        }}
-      >
-        {label}
-      </div>
-
-      <div
-        style={{
-          fontSize: 13,
-          lineHeight: 1.15,
-          fontWeight: 900,
-          color: accent,
-        }}
-      >
-        {value}
-      </div>
+      {signal.label}
     </div>
   );
 }
 
-function Tag({ text, green = false }) {
+function Tag({ text, green = false, accent }) {
   return (
     <span
       style={{
@@ -586,7 +513,7 @@ function Tag({ text, green = false }) {
         fontSize: 12,
         fontWeight: 850,
         background: green ? "#e7f8ef" : "#eef2f7",
-        color: green ? "#1f9d61" : "#49566f",
+        color: green ? "#1f9d61" : accent || "#49566f",
         whiteSpace: "nowrap",
       }}
     >
