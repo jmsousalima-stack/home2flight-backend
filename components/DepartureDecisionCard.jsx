@@ -42,6 +42,47 @@ function getBriefingText(timeline = []) {
   return "Plano operacional estável. A recomendação considera preparação, transporte, aeroporto e dados do voo.";
 }
 
+function getDecisionFactors(timeline = []) {
+  const hasAirportRisk = timeline.some((item) => item.status === "risk");
+  const hasTransportBuffer = timeline.some((item) => item.status === "buffer");
+  const hasFlightSignal = timeline.some((item) =>
+    item.operationalSignals?.some((signal) => signal.type === "flight_status")
+  );
+
+  return [
+    {
+      label: "Traffic",
+      level: hasTransportBuffer ? "Moderate" : "Low",
+      color: hasTransportBuffer ? "#f59e0b" : "#22c55e",
+      explanation: hasTransportBuffer
+        ? "Margem adicional aplicada ao trajeto."
+        : "Sem impacto relevante no trajeto.",
+    },
+    {
+      label: "Security queue",
+      level: hasAirportRisk ? "High" : "Normal",
+      color: hasAirportRisk ? "#ef4444" : "#22c55e",
+      explanation: hasAirportRisk
+        ? "Fila e variabilidade aeroportuária elevadas."
+        : "Processo aeroportuário dentro do esperado.",
+    },
+    {
+      label: "Flight delay risk",
+      level: hasFlightSignal ? "Medium" : "Low",
+      color: hasFlightSignal ? "#f59e0b" : "#22c55e",
+      explanation: hasFlightSignal
+        ? "Estado do voo exige validação extra."
+        : "Sem sinais críticos no voo.",
+    },
+    {
+      label: "Weather impact",
+      level: "Low",
+      color: "#22c55e",
+      explanation: "Sem impacto meteorológico relevante neste briefing.",
+    },
+  ];
+}
+
 export default function DepartureDecisionCard({ timelineData }) {
   const timeline = timelineData?.timeline || [];
 
@@ -50,6 +91,7 @@ export default function DepartureDecisionCard({ timelineData }) {
   const reliabilityScore = getReliabilityScore(timeline);
   const confidenceScore = Math.min(95, reliabilityScore + 24);
   const briefingText = getBriefingText(timeline);
+  const decisionFactors = getDecisionFactors(timeline);
 
   const keySignals = timeline
     .flatMap((item) => item.operationalSignals || [])
@@ -125,37 +167,7 @@ export default function DepartureDecisionCard({ timelineData }) {
         sensível
       </h1>
 
-      <div
-        style={{
-          background: "rgba(255,255,255,0.08)",
-          border: "1px solid rgba(255,255,255,0.06)",
-          borderRadius: 24,
-          padding: 20,
-          marginBottom: 18,
-        }}
-      >
-        <div
-          style={{
-            color: "#cbd5e1",
-            fontSize: 13,
-            fontWeight: 900,
-            letterSpacing: 3,
-            marginBottom: 12,
-          }}
-        >
-          OPERATIONAL BRIEFING
-        </div>
-
-        <div
-          style={{
-            color: "#e5e7eb",
-            fontSize: 17,
-            lineHeight: 1.45,
-          }}
-        >
-          {briefingText}
-        </div>
-      </div>
+      <GlassBlock label="OPERATIONAL BRIEFING">{briefingText}</GlassBlock>
 
       <div
         style={{
@@ -185,7 +197,7 @@ export default function DepartureDecisionCard({ timelineData }) {
           background: "rgba(255,255,255,0.08)",
           borderRadius: 24,
           padding: 20,
-          marginBottom: keySignals.length ? 16 : 0,
+          marginBottom: 16,
         }}
       >
         <div
@@ -222,6 +234,40 @@ export default function DepartureDecisionCard({ timelineData }) {
         </div>
       </div>
 
+      <div
+        style={{
+          background: "rgba(255,255,255,0.075)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 24,
+          padding: 18,
+          marginBottom: keySignals.length ? 16 : 0,
+        }}
+      >
+        <div
+          style={{
+            color: "#cbd5e1",
+            fontSize: 13,
+            fontWeight: 900,
+            letterSpacing: 2.5,
+            marginBottom: 14,
+          }}
+        >
+          WHY THIS TIME?
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+          }}
+        >
+          {decisionFactors.map((factor) => (
+            <DecisionFactor key={factor.label} factor={factor} />
+          ))}
+        </div>
+      </div>
+
       {keySignals.length > 0 && (
         <div
           style={{
@@ -248,6 +294,102 @@ export default function DepartureDecisionCard({ timelineData }) {
         </div>
       )}
     </section>
+  );
+}
+
+function GlassBlock({ label, children }) {
+  return (
+    <div
+      style={{
+        background: "rgba(255,255,255,0.08)",
+        border: "1px solid rgba(255,255,255,0.06)",
+        borderRadius: 24,
+        padding: 20,
+        marginBottom: 18,
+      }}
+    >
+      <div
+        style={{
+          color: "#cbd5e1",
+          fontSize: 13,
+          fontWeight: 900,
+          letterSpacing: 3,
+          marginBottom: 12,
+        }}
+      >
+        {label}
+      </div>
+
+      <div
+        style={{
+          color: "#e5e7eb",
+          fontSize: 17,
+          lineHeight: 1.45,
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function DecisionFactor({ factor }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "12px 1fr auto",
+        gap: 10,
+        alignItems: "center",
+      }}
+    >
+      <div
+        style={{
+          width: 10,
+          height: 10,
+          borderRadius: 999,
+          background: factor.color,
+          boxShadow: `0 0 16px ${factor.color}`,
+        }}
+      />
+
+      <div style={{ minWidth: 0 }}>
+        <div
+          style={{
+            color: "#f8fafc",
+            fontSize: 14,
+            fontWeight: 800,
+            marginBottom: 2,
+          }}
+        >
+          {factor.label}
+        </div>
+
+        <div
+          style={{
+            color: "#94a3b8",
+            fontSize: 12,
+            lineHeight: 1.25,
+          }}
+        >
+          {factor.explanation}
+        </div>
+      </div>
+
+      <div
+        style={{
+          color: factor.color,
+          fontSize: 12,
+          fontWeight: 900,
+          background: "rgba(255,255,255,0.08)",
+          borderRadius: 999,
+          padding: "6px 9px",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {factor.level}
+      </div>
+    </div>
   );
 }
 
