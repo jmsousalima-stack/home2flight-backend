@@ -13,9 +13,7 @@ async function fetchJson(url) {
 }
 
 function buildBaseUrl(req) {
-  const protocol =
-    req.headers["x-forwarded-proto"] || "https";
-
+  const protocol = req.headers["x-forwarded-proto"] || "https";
   const host = req.headers.host;
 
   return `${protocol}://${host}`;
@@ -28,37 +26,48 @@ function buildFlightStep(flightEngine) {
     return null;
   }
 
-  const delay =
-    flight?.departure?.delayMinutes ||
-    flight?.arrival?.delayMinutes ||
-    0;
+  const departureDelay =
+    typeof flight?.departure?.delayMinutes === "number"
+      ? flight.departure.delayMinutes
+      : 0;
+
+  const arrivalDelay =
+    typeof flight?.arrival?.delayMinutes === "number"
+      ? flight.arrival.delayMinutes
+      : 0;
 
   let status = "ready";
   let recalculationStatus = "stable";
   let trustLevel = "high";
-  let confidenceScore = 88;
+  let confidenceScore = flightEngine?.reliability?.confidenceScore || 88;
   let buffer = "Ready";
 
-  if (delay >= 15) {
+  if (departureDelay >= 15) {
     status = "buffer";
     recalculationStatus = "recalculated";
     trustLevel = "medium";
-    confidenceScore = 72;
-    buffer = `+${delay}m`;
+    confidenceScore = Math.min(confidenceScore, 72);
+    buffer = `+${departureDelay}m`;
   }
 
-  if (delay >= 45) {
+  if (departureDelay >= 45) {
     status = "risk";
     recalculationStatus = "critical";
     trustLevel = "low";
-    confidenceScore = 45;
+    confidenceScore = Math.min(confidenceScore, 45);
+    buffer = `+${departureDelay}m`;
+  }
+
+  if (departureDelay === 0 && arrivalDelay > 0) {
+    status = "ready";
+    recalculationStatus = "monitoring";
+    trustLevel = flightEngine?.reliability?.trustLevel || "high";
+    buffer = "Monitoring";
   }
 
   return {
     id: 2,
-    time:
-      flight?.departure?.estimated ||
-      flight?.departure?.scheduled,
+    time: flight?.departure?.estimated || flight?.departure?.scheduled,
     title: "Confirmar estado do voo",
     category: "Flight",
     status,
@@ -70,15 +79,12 @@ function buildFlightStep(flightEngine) {
     buffer,
     recalculationStatus,
     liveInsight:
-      flightEngine?.intelligenceSummary?.summary ||
-      "Voo em monitorização.",
+      flightEngine?.intelligenceSummary?.summary || "Voo em monitorização.",
     reasoning: `Terminal ${flight?.departure?.terminal || "?"} · Gate ${
       flight?.departure?.gate || "?"
     }`,
-    intelligenceFlags:
-      flightEngine?.operationalSignals || [],
-    operationalSignals:
-      flightEngine?.operationalSignals || [],
+    intelligenceFlags: flightEngine?.operationalSignals || [],
+    operationalSignals: flightEngine?.operationalSignals || [],
     liveData: {
       airline: flight?.airline?.name,
       flightNumber: flight?.number,
@@ -86,8 +92,8 @@ function buildFlightStep(flightEngine) {
       arrivalAirport: flight?.route?.to?.code,
       terminal: flight?.departure?.terminal,
       gate: flight?.departure?.gate,
-      departureDelay: flight?.departure?.delayMinutes,
-      arrivalDelay: flight?.arrival?.delayMinutes,
+      departureDelay,
+      arrivalDelay,
       flightStatus: flight?.status,
     },
   };
@@ -106,8 +112,7 @@ export default async function handler(req, res) {
     `?flight=${flight}&origin=${origin}&airport=${airport}&mode=${mode}`;
 
   const flightEngineUrl =
-    `${BASE_URL}/api/engines/flight-status-engine` +
-    `?flight=${flight}`;
+    `${BASE_URL}/api/engines/flight-status-engine` + `?flight=${flight}`;
 
   const [baseEngine, flightEngine] = await Promise.all([
     fetchJson(baseEngineUrl),
@@ -129,9 +134,7 @@ export default async function handler(req, res) {
   const liveFlightStep = buildFlightStep(flightEngine);
 
   if (liveFlightStep) {
-    const index = timeline.findIndex(
-      (item) => item.category === "Flight"
-    );
+    const index = timeline.findIndex((item) => item.category === "Flight");
 
     if (index >= 0) {
       timeline[index] = {
@@ -150,7 +153,7 @@ export default async function handler(req, res) {
     success: true,
     generatedAt: new Date().toISOString(),
     engine: "Home2Flight Unified Live Engine",
-    version: "0.2.0",
+    version: "0.2.1",
     request: {
       flight,
       origin,
@@ -160,17 +163,14 @@ export default async function handler(req, res) {
     liveFlightEngine: flightEngine,
     liveOperationalSignals,
     decision: baseEngine.decision,
-    liveOperationalMonitor:
-      baseEngine.liveOperationalMonitor,
+    liveOperationalMonitor: baseEngine.liveOperationalMonitor,
     timeline,
     diagnostics: {
       baseUrl: BASE_URL,
-      flightEngineConnected:
-        Boolean(flightEngine?.success),
-      liveSignals:
-        liveOperationalSignals.length,
-      timelineItems:
-        timeline.length,
+      flightEngineConnected: Boolean(flightEngine?.success),
+      flightStepUsesDepartureDelayOnly: true,
+      liveSignals: liveOperationalSignals.length,
+      timelineItems: timeline.length,
     },
   });
 }
