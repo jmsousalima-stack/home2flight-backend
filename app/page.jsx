@@ -3,23 +3,11 @@
 import { useEffect, useState } from "react";
 
 import DepartureDecisionCard from "../components/DepartureDecisionCard";
-import OperationalStatusBar from "../components/OperationalStatusBar";
+import LiveOperationalMonitor from "../components/LiveOperationalMonitor";
 import TimelineCard from "../components/TimelineCard";
 
 const ENGINE_URL =
-  "/api/home2flight-engine?flight=AF1195&origin=Lisboa&airport=LIS&mode=car";
-
-function getOperationalRiskLabel(risk) {
-  if (risk === "high") return "HIGH OPERATIONAL PRESSURE";
-  if (risk === "medium") return "MEDIUM OPERATIONAL PRESSURE";
-  if (risk === "low") return "LOW OPERATIONAL PRESSURE";
-  return "OPERATIONAL MONITORING";
-}
-
-function getActiveEngines(data) {
-  const sourceBreakdown = data?.sourceBreakdown || {};
-  return Object.keys(sourceBreakdown).length || 5;
-}
+  "/api/live-operational-monitor?flight=AF1195&origin=Lisboa&airport=LIS&mode=car";
 
 export default function Home() {
   const [timelineData, setTimelineData] = useState(null);
@@ -39,7 +27,7 @@ export default function Home() {
         const json = await response.json();
 
         if (!json?.success) {
-          throw new Error(json?.error || "Home2Flight engine failed.");
+          throw new Error(json?.error || "Home2Flight monitor failed.");
         }
 
         setTimelineData(json);
@@ -75,11 +63,11 @@ export default function Home() {
           }}
         >
           <h1 style={{ margin: "0 0 12px", fontSize: 28 }}>
-            Home2Flight Engine offline
+            Home2Flight Monitor offline
           </h1>
 
           <p style={{ color: "#cbd5e1", lineHeight: 1.5, margin: 0 }}>
-            Não foi possível carregar o motor operacional neste momento.
+            Não foi possível carregar a monitorização operacional neste momento.
           </p>
 
           <p
@@ -110,7 +98,7 @@ export default function Home() {
           fontFamily: "Arial, sans-serif",
         }}
       >
-        Loading Home2Flight Engine...
+        Loading Home2Flight Live Monitor...
       </main>
     );
   }
@@ -134,11 +122,8 @@ export default function Home() {
           gap: 18,
         }}
       >
-        <OperationalStatusBar
-          status="LIVE OPERATIONAL MONITORING"
-          engines={getActiveEngines(timelineData)}
-          updated="Updated just now"
-          risk={getOperationalRiskLabel(timelineData?.decision?.operationalRisk)}
+        <LiveOperationalMonitor
+          monitor={timelineData.liveOperationalMonitor}
         />
 
         <DepartureDecisionCard timelineData={timelineData} />
