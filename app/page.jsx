@@ -3,10 +3,23 @@
 import { useEffect, useState } from "react";
 
 import DepartureDecisionCard from "../components/DepartureDecisionCard";
+import OperationalStatusBar from "../components/OperationalStatusBar";
 import TimelineCard from "../components/TimelineCard";
 
 const ENGINE_URL =
   "/api/home2flight-engine?flight=AF1195&origin=Lisboa&airport=LIS&mode=car";
+
+function getOperationalRiskLabel(risk) {
+  if (risk === "high") return "HIGH OPERATIONAL PRESSURE";
+  if (risk === "medium") return "MEDIUM OPERATIONAL PRESSURE";
+  if (risk === "low") return "LOW OPERATIONAL PRESSURE";
+  return "OPERATIONAL MONITORING";
+}
+
+function getActiveEngines(data) {
+  const sourceBreakdown = data?.sourceBreakdown || {};
+  return Object.keys(sourceBreakdown).length || 5;
+}
 
 export default function Home() {
   const [timelineData, setTimelineData] = useState(null);
@@ -118,9 +131,16 @@ export default function Home() {
           margin: "0 auto",
           display: "flex",
           flexDirection: "column",
-          gap: 24,
+          gap: 18,
         }}
       >
+        <OperationalStatusBar
+          status="LIVE OPERATIONAL MONITORING"
+          engines={getActiveEngines(timelineData)}
+          updated="Updated just now"
+          risk={getOperationalRiskLabel(timelineData?.decision?.operationalRisk)}
+        />
+
         <DepartureDecisionCard timelineData={timelineData} />
 
         <TimelineCard timeline={timelineData.timeline || []} />
