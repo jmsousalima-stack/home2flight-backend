@@ -12,6 +12,15 @@ async function fetchJson(url) {
   }
 }
 
+function buildBaseUrl(req) {
+  const protocol =
+    req.headers["x-forwarded-proto"] || "https";
+
+  const host = req.headers.host;
+
+  return `${protocol}://${host}`;
+}
+
 function buildFlightStep(flightEngine) {
   const flight = flightEngine?.flight;
 
@@ -90,12 +99,14 @@ export default async function handler(req, res) {
   const airport = req.query.airport || "LIS";
   const mode = req.query.mode || "car";
 
+  const BASE_URL = buildBaseUrl(req);
+
   const baseEngineUrl =
-    `${req.headers.origin}/api/home2flight-engine` +
+    `${BASE_URL}/api/home2flight-engine` +
     `?flight=${flight}&origin=${origin}&airport=${airport}&mode=${mode}`;
 
   const flightEngineUrl =
-    `${req.headers.origin}/api/engines/flight-status-engine` +
+    `${BASE_URL}/api/engines/flight-status-engine` +
     `?flight=${flight}`;
 
   const [baseEngine, flightEngine] = await Promise.all([
@@ -107,6 +118,9 @@ export default async function handler(req, res) {
     return res.status(500).json({
       success: false,
       error: "Base Home2Flight engine unavailable.",
+      diagnostics: {
+        baseEngineUrl,
+      },
     });
   }
 
@@ -150,6 +164,7 @@ export default async function handler(req, res) {
       baseEngine.liveOperationalMonitor,
     timeline,
     diagnostics: {
+      baseUrl: BASE_URL,
       flightEngineConnected:
         Boolean(flightEngine?.success),
       liveSignals:
