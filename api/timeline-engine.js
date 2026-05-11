@@ -1,361 +1,342 @@
 export default async function handler(req, res) {
-  const flight = req.query.flight || "AF1195";
-  const origin = req.query.origin || "Lisboa";
-  const airport = req.query.airport || "LIS";
-  const mode = req.query.mode || "car";
+  const flight = String(req.query.flight || "AF1195").toUpperCase();
+  const origin = String(req.query.origin || "Lisboa");
+  const airport = String(req.query.airport || "LIS").toUpperCase();
+  const mode = String(req.query.mode || "car");
 
   try {
-    const baseUrl =
-      process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : "http://localhost:3000";
+    const protocol = process.env.NODE_ENV === "development" ? "http" : "https";
+    const host = req.headers.host || "localhost:3000";
+    const baseUrl = `${protocol}://${host}`;
 
-    // =========================
-    // FETCH ENGINES
-    // =========================
+    const flightUrl = `${baseUrl}/api/flight-intelligence?flight=${encodeURIComponent(
+      flight
+    )}`;
 
-    const [
-      flightResponse,
-      airportResponse,
-      routeResponse,
-      decisionResponse,
-    ] = await Promise.all([
-      fetch(
-        `${baseUrl}/api/flight-intelligence?flight=${flight}`
-      ),
+    const airportUrl = `${baseUrl}/api/airport-intel?airport=${encodeURIComponent(
+      airport
+    )}`;
 
-      fetch(
-        `${baseUrl}/api/airport-intel?airport=${airport}`
-      ),
+    const routeUrl = `${baseUrl}/api/route-intelligence?origin=${encodeURIComponent(
+      origin
+    )}&airport=${encodeURIComponent(airport)}&mode=${encodeURIComponent(mode)}`;
 
-      fetch(
-        `${baseUrl}/api/route-intelligence?origin=${origin}&airport=${airport}&mode=${mode}`
-      ),
+    const decisionUrl = `${baseUrl}/api/reliability-engine?flight=${encodeURIComponent(
+      flight
+    )}&origin=${encodeURIComponent(origin)}&airport=${encodeURIComponent(
+      airport
+    )}&mode=${encodeURIComponent(mode)}`;
 
-      fetch(
-        `${baseUrl}/api/reliability-engine?flight=${flight}&origin=${origin}&airport=${airport}&mode=${mode}`
-      ),
-    ]);
-
-    const flightData = await flightResponse.json();
-    const airportData = await airportResponse.json();
-    const routeData = await routeResponse.json();
-    const decisionData = await decisionResponse.json();
-
-    // =========================
-    // CORE VALUES
-    // =========================
+    const [flightData, airportData, routeData, decisionData] =
+      await Promise.all([
+        fetchJson(flightUrl, "flight-intelligence"),
+        fetchJson(airportUrl, "airport-intel"),
+        fetchJson(routeUrl, "route-intelligence"),
+        fetchJson(decisionUrl, "reliability-engine"),
+      ]);
 
     const departureTime =
       decisionData?.decision?.recommendedDepartureLocal || "17:42";
 
-    const flightStatus =
-      flightData?.flight?.status || "unknown";
-
+    const flightStatus = flightData?.flight?.status || "unknown";
     const airportRisk =
-      airportData?.operationalProfile?.riskLevel || "medium";
+      airportData?.operationalProfile?.riskLevel ||
+      airportData?.intelligenceSummary?.airportRisk ||
+      "medium";
 
     const routeRisk =
-      routeData?.operationalProfile?.routeRiskLevel || "medium";
+      routeData?.operationalProfile?.routeRiskLevel ||
+      routeData?.intelligenceSummary?.routeRisk ||
+      "medium";
 
     const dynamicBuffer =
-      decisionData?.decision?.dynamicBufferMinutes || 25;
+      decisionData?.decision?.dynamicBufferMinutes ||
+      routeData?.route?.dynamicBufferMinutes ||
+      25;
 
-    // =========================
-    // TIMELINE
-    // =========================
+    const flightDepartureTime =
+      extractFlightTime(flightData?.flight?.departure?.scheduled) || "18:50";
 
     const timeline = [
       {
         id: 1,
         time: buildRelativeTime(departureTime, -70),
-
-        status: "ready",
-
-        recalculationStatus: "stable",
-
-        title: "Preparar documentos",
-
+        title: "Preparar documentos e essenciais",
         category: "Preparation",
-
+        status: "ready",
+        confidence: "Preparation",
         confidenceScore: 88,
-
         trustLevel: "high",
-
-        liveInsight:
-          "Preparação inicial validada antes da saída.",
-
+        source: "User checklist",
+        sourceType: "user_context",
+        buffer: "Prep",
+        lastUpdatedMinutesAgo: 1,
+        recalculationStatus: "stable",
+        liveInsight: "Preparação inicial validada com margem confortável.",
         reasoning:
-          "Checklist inicial para garantir documentação, boarding pass e essenciais.",
-
-        source: "Preparation layer",
-
-        operationalSignals: [
+          "Tempo recomendado para preparação inicial antes da saída.",
+        intelligenceFlags: [
           {
+            type: "user_readiness",
             label: "Checklist pessoal",
             severity: "low",
           },
         ],
-
-        lastUpdatedMinutesAgo: 1,
+        operationalSignals: [],
       },
 
       {
         id: 2,
-
         time: buildRelativeTime(departureTime, -40),
-
-        status:
-          flightStatus === "delayed"
-            ? "buffer"
-            : "ready",
-
-        recalculationStatus:
-          flightStatus === "delayed"
-            ? "monitoring"
-            : "stable",
-
         title: "Confirmar estado do voo",
-
         category: "Flight",
-
-        confidenceScore:
-          flightData?.reliability?.score || 70,
-
-        trustLevel:
-          flightData?.reliability?.trustLevel || "medium",
-
+        status: flightStatus === "delayed" ? "buffer" : "ready",
+        confidence: "Flight",
+        confidenceScore: flightData?.reliability?.score || 70,
+        trustLevel: flightData?.reliability?.trustLevel || "medium",
+        source: "Flight data",
+        sourceType: "flight_engine",
+        buffer: flightStatus === "delayed" ? "+10m" : "Pending",
+        lastUpdatedMinutesAgo: 1,
+        recalculationStatus:
+          flightStatus === "delayed" ? "monitoring" : "stable",
         liveInsight:
-          flightData?.intelligenceSummary?.summary,
-
+          flightData?.intelligenceSummary?.summary ||
+          "Estado do voo em monitorização.",
         reasoning:
-          "Última validação operacional do voo antes da saída.",
-
-        source: "Flight intelligence",
-
-        operationalSignals: [
+          "Verificação final do estado do voo e documentação digital.",
+        intelligenceFlags: [
           {
+            type: "flight_status",
             label:
               flightStatus === "delayed"
-                ? "Atraso operacional"
-                : "Voo monitorizado",
-
-            severity:
-              flightStatus === "delayed"
-                ? "medium"
-                : "low",
+                ? "Atraso operacional detetado"
+                : "Estado do voo em monitorização",
+            severity: flightStatus === "delayed" ? "medium" : "low",
           },
         ],
-
-        lastUpdatedMinutesAgo: 1,
+        operationalSignals: [
+          {
+            type: "flight_status",
+            label:
+              flightStatus === "delayed"
+                ? "Atraso operacional detetado"
+                : "Voo monitorizado",
+            severity: flightStatus === "delayed" ? "medium" : "low",
+          },
+        ],
       },
 
       {
         id: 3,
-
-        time: departureTime,
-
-        status:
-          routeRisk === "medium"
-            ? "buffer"
-            : "ready",
-
-        recalculationStatus:
-          dynamicBuffer >= 25
-            ? "recalculated"
-            : "stable",
-
-        title: "Sair para o aeroporto",
-
+        time: buildRelativeTime(departureTime, 0),
+        title: "Sair de casa",
         category: "Transport",
-
-        confidenceScore:
-          routeData?.reliability?.confidenceScore || 70,
-
-        trustLevel:
-          routeData?.reliability?.trustLevel || "medium",
-
-        liveInsight:
-          routeData?.intelligenceSummary?.summary,
-
-        reasoning:
-          `Buffer dinâmico de ${dynamicBuffer} minutos aplicado à deslocação.`,
-
-        source: "Route intelligence",
-
+        status: routeRisk === "medium" ? "buffer" : "ready",
+        confidence: "Transport",
+        confidenceScore: routeData?.reliability?.confidenceScore || 70,
+        trustLevel: routeData?.reliability?.trustLevel || "medium",
+        source: "Route engine",
+        sourceType: "route_engine",
         buffer: `+${dynamicBuffer}m`,
-
-        operationalSignals: [
+        lastUpdatedMinutesAgo: 1,
+        recalculationStatus:
+          dynamicBuffer >= 25 ? "recalculated" : "stable",
+        liveInsight:
+          routeData?.intelligenceSummary?.summary ||
+          "Hora recalculada com margem dinâmica para deslocação.",
+        reasoning:
+          "Hora calculada considerando transporte, buffers dinâmicos e margem operacional.",
+        intelligenceFlags: [
           {
-            label: "Margem dinâmica",
+            type: "traffic",
+            label: "Margem dinâmica aplicada",
             severity: "medium",
           },
-
           {
-            label: "Trânsito monitorizado",
+            type: "route",
+            label: "Trajeto em monitorização",
             severity: "medium",
           },
         ],
-
-        lastUpdatedMinutesAgo: 1,
+        operationalSignals: [
+          {
+            type: "traffic",
+            label: "Margem dinâmica aplicada",
+            severity: "medium",
+          },
+        ],
       },
 
       {
         id: 4,
-
         time: buildRelativeTime(departureTime, dynamicBuffer),
-
-        status:
-          airportRisk === "high"
-            ? "risk"
-            : "buffer",
-
-        recalculationStatus:
-          airportRisk === "high"
-            ? "risk_adjusted"
-            : "recalculated",
-
         title: "Chegar ao aeroporto",
-
         category: "Airport",
-
-        confidenceScore:
-          airportData?.reliability?.confidenceScore || 65,
-
-        trustLevel:
-          airportData?.reliability?.trustLevel || "medium",
-
-        liveInsight:
-          airportData?.intelligenceSummary?.summary,
-
-        reasoning:
-          "Chegada antecipada considerando segurança, terminal e variabilidade operacional.",
-
-        source: "Airport intelligence",
-
+        status: airportRisk === "high" ? "risk" : "buffer",
+        confidence: "Airport intel",
+        confidenceScore: airportData?.reliability?.confidenceScore || 65,
+        trustLevel: airportData?.reliability?.trustLevel || "medium",
+        source: "Operational profile",
+        sourceType: "airport_profile",
         buffer: `+${dynamicBuffer}m`,
-
-        operationalSignals: [
+        lastUpdatedMinutesAgo: 1,
+        recalculationStatus:
+          airportRisk === "high" ? "risk_adjusted" : "recalculated",
+        liveInsight:
+          airportData?.intelligenceSummary?.summary ||
+          "Chegada antecipada por variabilidade operacional.",
+        reasoning:
+          "Chegada recomendada baseada em filas, deslocações internas, segurança e risco operacional.",
+        intelligenceFlags: [
           {
-            label: "Segurança aeroportuária",
-            severity:
-              airportRisk === "high"
-                ? "high"
-                : "medium",
+            type: "security_queue",
+            label: "Fila de segurança longa",
+            severity: airportRisk === "high" ? "high" : "medium",
           },
-
           {
-            label: "Walking time",
+            type: "airport_complexity",
+            label: "Terminal com elevada variabilidade",
+            severity: "medium",
+          },
+          {
+            type: "gate_walk",
+            label: "Deslocação interna prolongada",
             severity: "medium",
           },
         ],
-
-        lastUpdatedMinutesAgo: 1,
+        operationalSignals: [
+          {
+            type: "security_queue",
+            label: "Fila de segurança longa",
+            severity: airportRisk === "high" ? "high" : "medium",
+          },
+          {
+            type: "airport_complexity",
+            label: "Terminal com elevada variabilidade",
+            severity: "medium",
+          },
+        ],
       },
 
       {
         id: 5,
-
-        time:
-          extractFlightTime(
-            flightData?.flight?.departure?.scheduled
-          ) || "18:50",
-
-        status:
-          flightStatus === "active"
-            ? "ready"
-            : "buffer",
-
-        recalculationStatus:
-          flightStatus === "active"
-            ? "monitoring"
-            : "stable",
-
+        time: buildAbsoluteTime(flightDepartureTime),
         title: "Partida do voo",
-
         category: "Flight",
-
-        confidenceScore:
-          flightData?.reliability?.score || 75,
-
-        trustLevel:
-          flightData?.reliability?.trustLevel || "medium",
-
+        status: flightStatus === "cancelled" ? "risk" : "ready",
+        confidence: "Flight",
+        confidenceScore: flightData?.reliability?.score || 75,
+        trustLevel: flightData?.reliability?.trustLevel || "medium",
+        source: "Flight data",
+        sourceType: "flight_engine",
+        buffer: "Pending",
+        lastUpdatedMinutesAgo: 1,
+        recalculationStatus:
+          flightStatus === "active" ? "monitoring" : "stable",
         liveInsight:
-          flightData?.intelligenceSummary?.summary,
-
+          flightData?.intelligenceSummary?.summary ||
+          "Hora programada pela companhia ainda sujeita a validação.",
         reasoning:
-          "Estado atual monitorizado pela camada de voo.",
-
-        source: "Flight intelligence",
-
-        operationalSignals: [
+          "Hora programada atualmente pela companhia aérea.",
+        intelligenceFlags: [
           {
-            label: "Estado do voo",
-            severity:
-              flightStatus === "cancelled"
-                ? "high"
-                : "low",
+            type: "flight_monitoring",
+            label: "Estado do voo em monitorização",
+            severity: flightStatus === "cancelled" ? "high" : "low",
           },
         ],
-
-        lastUpdatedMinutesAgo: 1,
+        operationalSignals: [],
       },
     ];
 
-    // =========================
-    // RESPONSE
-    // =========================
-
     return res.status(200).json({
       success: true,
-
       generatedAt: new Date().toISOString(),
-
       engine: "Home2Flight Timeline Generation Engine",
-
-      version: "0.1.0",
-
+      version: "0.2.0",
       request: {
         flight,
         origin,
         airport,
         mode,
       },
-
-      decision: decisionData?.decision,
-
+      decision: decisionData?.decision || null,
       timeline,
-
       diagnostics: {
+        baseUrl,
         flightStatus,
         airportRisk,
         routeRisk,
         dynamicBuffer,
+        engines: {
+          flight: flightData?.success ?? null,
+          airport: airportData?.success ?? null,
+          route: routeData?.success ?? null,
+          decision: decisionData?.success ?? null,
+        },
       },
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
-
+      generatedAt: new Date().toISOString(),
       engine: "Home2Flight Timeline Generation Engine",
-
+      version: "0.2.0",
       error: error.message,
     });
   }
 }
 
-// =====================================
-// HELPERS
-// =====================================
+async function fetchJson(url, engineName) {
+  const response = await fetch(url);
+  const contentType = response.headers.get("content-type") || "";
+  const text = await response.text();
+
+  if (!contentType.includes("application/json")) {
+    throw new Error(
+      `${engineName} returned non-JSON response. Status: ${response.status}. Preview: ${text.slice(
+        0,
+        120
+      )}`
+    );
+  }
+
+  const data = JSON.parse(text);
+
+  if (!response.ok) {
+    throw new Error(
+      `${engineName} failed with status ${response.status}: ${
+        data?.error || data?.message || "unknown error"
+      }`
+    );
+  }
+
+  return data;
+}
 
 function buildRelativeTime(baseTime, offsetMinutes) {
-  const [hours, minutes] = baseTime.split(":").map(Number);
+  const [hours, minutes] = String(baseTime).split(":").map(Number);
 
   const date = new Date();
 
-  date.setHours(hours);
-  date.setMinutes(minutes + offsetMinutes);
+  date.setHours(Number.isFinite(hours) ? hours : 17);
+  date.setMinutes((Number.isFinite(minutes) ? minutes : 42) + offsetMinutes);
+  date.setSeconds(0);
+  date.setMilliseconds(0);
+
+  return date.toISOString();
+}
+
+function buildAbsoluteTime(timeString) {
+  const [hours, minutes] = String(timeString).split(":").map(Number);
+
+  const date = new Date();
+
+  date.setHours(Number.isFinite(hours) ? hours : 18);
+  date.setMinutes(Number.isFinite(minutes) ? minutes : 50);
+  date.setSeconds(0);
+  date.setMilliseconds(0);
 
   return date.toISOString();
 }
@@ -364,6 +345,8 @@ function extractFlightTime(dateString) {
   if (!dateString) return null;
 
   const date = new Date(dateString);
+
+  if (Number.isNaN(date.getTime())) return null;
 
   return date.toLocaleTimeString("pt-PT", {
     hour: "2-digit",
