@@ -7,7 +7,7 @@ import LiveOperationalMonitor from "../components/LiveOperationalMonitor";
 import TimelineCard from "../components/TimelineCard";
 
 const ENGINE_URL =
-  "/api/live-operational-monitor?flight=AF1195&origin=Lisboa&airport=LIS&mode=car";
+  "/api/home2flight-live-engine?flight=AF1195&origin=Lisboa&airport=LIS&mode=car";
 
 export default function Home() {
   const [timelineData, setTimelineData] = useState(null);
@@ -27,7 +27,9 @@ export default function Home() {
         const json = await response.json();
 
         if (!json?.success) {
-          throw new Error(json?.error || "Home2Flight monitor failed.");
+          throw new Error(
+            json?.error || "Home2Flight live engine failed."
+          );
         }
 
         setTimelineData(json);
@@ -62,12 +64,23 @@ export default function Home() {
             padding: 24,
           }}
         >
-          <h1 style={{ margin: "0 0 12px", fontSize: 28 }}>
-            Home2Flight Monitor offline
+          <h1
+            style={{
+              margin: "0 0 12px",
+              fontSize: 28,
+            }}
+          >
+            Home2Flight Engine offline
           </h1>
 
-          <p style={{ color: "#cbd5e1", lineHeight: 1.5, margin: 0 }}>
-            Não foi possível carregar a monitorização operacional neste momento.
+          <p
+            style={{
+              color: "#cbd5e1",
+              lineHeight: 1.5,
+              margin: 0,
+            }}
+          >
+            Não foi possível carregar o motor operacional neste momento.
           </p>
 
           <p
@@ -98,7 +111,7 @@ export default function Home() {
           fontFamily: "Arial, sans-serif",
         }}
       >
-        Loading Home2Flight Live Monitor...
+        Loading Home2Flight Live Engine...
       </main>
     );
   }
@@ -119,16 +132,20 @@ export default function Home() {
           margin: "0 auto",
           display: "flex",
           flexDirection: "column",
-          gap: 18,
+          gap: 20,
         }}
       >
         <LiveOperationalMonitor
-          monitor={timelineData.liveOperationalMonitor}
+          monitor={timelineData?.liveOperationalMonitor}
         />
 
-        <DepartureDecisionCard timelineData={timelineData} />
+        <DepartureDecisionCard
+          timelineData={timelineData}
+        />
 
-        <TimelineCard timeline={timelineData.timeline || []} />
+        <TimelineCard
+          timeline={timelineData?.timeline || []}
+        />
       </div>
     </main>
   );
