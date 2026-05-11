@@ -1,101 +1,160 @@
 "use client";
 
-function getMainRisk(timeline = []) {
-  const hasHigh = timeline.some((item) => item.status === "risk");
-  const hasBuffer = timeline.some((item) => item.status === "buffer");
+function getDecision(data) {
+  return data?.decision || {};
+}
 
-  if (hasHigh) return "HIGH RISK";
-  if (hasBuffer) return "BUFFER";
+function getTimeline(data) {
+  return data?.timeline || [];
+}
+
+function getSignals(data) {
+  const timeline = getTimeline(data);
+
+  return timeline.flatMap((item) => item.operationalSignals || []).slice(0, 4);
+}
+
+function getMainRisk(decision) {
+  if (decision?.operationalRisk === "high") return "HIGH RISK";
+  if (decision?.operationalRisk === "medium") return "BUFFER";
   return "STABLE";
 }
 
-function getRecommendedDeparture(timeline = []) {
-  const leaveHome = timeline.find((item) => item.category === "Transport");
-
-  if (!leaveHome?.time) return "--:--";
-
-  return new Date(leaveHome.time).toLocaleTimeString("pt-PT", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function getRiskColor(risk) {
+  if (risk === "HIGH RISK") return "#ef4444";
+  if (risk === "BUFFER") return "#f59e0b";
+  return "#22c55e";
 }
 
-function getReliabilityScore(timeline = []) {
-  const riskItems = timeline.filter((item) => item.status === "risk").length;
-  const bufferItems = timeline.filter((item) => item.status === "buffer").length;
-
-  return Math.max(0, 82 - riskItems * 22 - bufferItems * 10);
+function getReliabilityColor(score) {
+  if (score >= 80) return "#22c55e";
+  if (score >= 60) return "#60a5fa";
+  return "#f59e0b";
 }
 
-function getBriefingText(timeline = []) {
-  const riskStep = timeline.find((item) => item.status === "risk");
-  const bufferStep = timeline.find((item) => item.status === "buffer");
-
-  if (riskStep) {
-    return "Plano operacional com margem reforçada. A recomendação considera risco aeroportuário, sinais operacionais ativos e buffers de segurança.";
-  }
-
-  if (bufferStep) {
-    return "Plano operacional com margem dinâmica. A recomendação considera transporte, estado do voo e margem adicional.";
-  }
-
-  return "Plano operacional estável. A recomendação considera preparação, transporte, aeroporto e dados do voo.";
-}
-
-function getDecisionFactors(timeline = []) {
-  const hasAirportRisk = timeline.some((item) => item.status === "risk");
-  const hasTransportBuffer = timeline.some((item) => item.status === "buffer");
-  const hasFlightSignal = timeline.some((item) =>
-    item.operationalSignals?.some((signal) => signal.type === "flight_status")
+function getBriefing(data) {
+  return (
+    data?.decision?.summary ||
+    "Operational intelligence active. Timeline generated with reliability weighting."
   );
+}
+
+function getDecisionFactors(data) {
+  const airportRisk = data?.inputs?.airport?.operationalProfile?.riskLevel;
+  const routeRisk = data?.inputs?.route?.operationalProfile?.trafficRisk;
+  const flightStatus = data?.inputs?.flight?.flight?.status;
+  const weatherRisk =
+    data?.inputs?.weather?.operationalWeather?.impactLevel;
 
   return [
     {
       label: "Traffic",
-      level: hasTransportBuffer ? "Moderate" : "Low",
-      color: hasTransportBuffer ? "#f59e0b" : "#22c55e",
-      explanation: hasTransportBuffer
-        ? "Margem adicional aplicada ao trajeto."
-        : "Sem impacto relevante no trajeto.",
+      level:
+        routeRisk === "high"
+          ? "High"
+          : routeRisk === "medium"
+          ? "Moderate"
+          : "Low",
+      color:
+        routeRisk === "high"
+          ? "#ef4444"
+          : routeRisk === "medium"
+          ? "#f59e0b"
+          : "#22c55e",
+      explanation:
+        routeRisk === "high"
+          ? "Heavy operational variability detected."
+          : routeRisk === "medium"
+          ? "Dynamic route buffer applied."
+          : "Stable access route.",
     },
+
     {
-      label: "Security queue",
-      level: hasAirportRisk ? "High" : "Normal",
-      color: hasAirportRisk ? "#ef4444" : "#22c55e",
-      explanation: hasAirportRisk
-        ? "Fila e variabilidade aeroportuária elevadas."
-        : "Processo aeroportuário dentro do esperado.",
+      label: "Airport",
+      level:
+        airportRisk === "high"
+          ? "High"
+          : airportRisk === "medium"
+          ? "Moderate"
+          : "Low",
+      color:
+        airportRisk === "high"
+          ? "#ef4444"
+          : airportRisk === "medium"
+          ? "#f59e0b"
+          : "#22c55e",
+      explanation:
+        airportRisk === "high"
+          ? "Airport congestion risk detected."
+          : airportRisk === "medium"
+          ? "Moderate operational pressure."
+          : "Airport operating normally.",
     },
+
     {
-      label: "Flight delay risk",
-      level: hasFlightSignal ? "Medium" : "Low",
-      color: hasFlightSignal ? "#f59e0b" : "#22c55e",
-      explanation: hasFlightSignal
-        ? "Estado do voo exige validação extra."
-        : "Sem sinais críticos no voo.",
+      label: "Flight",
+      level:
+        flightStatus === "delayed"
+          ? "Moderate"
+          : flightStatus === "cancelled"
+          ? "Critical"
+          : "Low",
+      color:
+        flightStatus === "cancelled"
+          ? "#ef4444"
+          : flightStatus === "delayed"
+          ? "#f59e0b"
+          : "#22c55e",
+      explanation:
+        flightStatus === "cancelled"
+          ? "Flight disruption detected."
+          : flightStatus === "delayed"
+          ? "Flight monitoring active."
+          : "Flight operating normally.",
     },
+
     {
-      label: "Weather impact",
-      level: "Low",
-      color: "#22c55e",
-      explanation: "Sem impacto meteorológico relevante neste briefing.",
+      label: "Weather",
+      level:
+        weatherRisk === "high"
+          ? "High"
+          : weatherRisk === "medium"
+          ? "Moderate"
+          : "Low",
+      color:
+        weatherRisk === "high"
+          ? "#ef4444"
+          : weatherRisk === "medium"
+          ? "#f59e0b"
+          : "#22c55e",
+      explanation:
+        weatherRisk === "high"
+          ? "Weather disruption risk detected."
+          : weatherRisk === "medium"
+          ? "Weather variability active."
+          : "Weather conditions stable.",
     },
   ];
 }
 
 export default function DepartureDecisionCard({ timelineData }) {
-  const timeline = timelineData?.timeline || [];
+  const decision = getDecision(timelineData);
+  const timeline = getTimeline(timelineData);
 
-  const riskLabel = getMainRisk(timeline);
-  const departureTime = getRecommendedDeparture(timeline);
-  const reliabilityScore = getReliabilityScore(timeline);
-  const confidenceScore = Math.min(95, reliabilityScore + 24);
-  const briefingText = getBriefingText(timeline);
-  const decisionFactors = getDecisionFactors(timeline);
+  const riskLabel = getMainRisk(decision);
+  const riskColor = getRiskColor(riskLabel);
 
-  const keySignals = timeline
-    .flatMap((item) => item.operationalSignals || [])
-    .slice(0, 3);
+  const reliabilityScore = decision?.globalReliabilityScore || 0;
+  const confidenceScore = decision?.globalConfidenceScore || 0;
+
+  const departureTime =
+    decision?.recommendedDepartureLocal || "--:--";
+
+  const briefingText = getBriefing(timelineData);
+
+  const decisionFactors = getDecisionFactors(timelineData);
+
+  const keySignals = getSignals(timelineData);
 
   return (
     <section
@@ -130,14 +189,14 @@ export default function DepartureDecisionCard({ timelineData }) {
         >
           HOME2FLIGHT
           <br />
-          BRIEFING
+          OPERATIONAL AI
         </div>
 
         <div
           style={{
-            border: "1.5px solid rgba(251,113,133,0.45)",
-            background: "rgba(127,29,29,0.18)",
-            color: "#fda4af",
+            border: `1.5px solid ${riskColor}`,
+            background: "rgba(255,255,255,0.08)",
+            color: riskColor,
             padding: "12px 16px",
             borderRadius: 999,
             fontSize: 15,
@@ -158,16 +217,18 @@ export default function DepartureDecisionCard({ timelineData }) {
           margin: "0 0 26px",
         }}
       >
-        Plano com
+        Leave home
         <br />
-        margem
+        with
         <br />
-        operacional
+        operational
         <br />
-        sensível
+        confidence
       </h1>
 
-      <GlassBlock label="OPERATIONAL BRIEFING">{briefingText}</GlassBlock>
+      <GlassBlock label="OPERATIONAL BRIEFING">
+        {briefingText}
+      </GlassBlock>
 
       <div
         style={{
@@ -180,14 +241,14 @@ export default function DepartureDecisionCard({ timelineData }) {
         <MetricCard
           title="Reliability"
           value={reliabilityScore}
-          subtitle={reliabilityScore < 60 ? "Baixa" : "Moderada"}
-          color={reliabilityScore < 60 ? "#facc15" : "#60a5fa"}
+          subtitle={decision?.trustLevel || "Unknown"}
+          color={getReliabilityColor(reliabilityScore)}
         />
 
         <MetricCard
           title="Confidence"
           value={confidenceScore}
-          subtitle="Confiança moderada"
+          subtitle="AI weighted"
           color="#60a5fa"
         />
       </div>
@@ -230,7 +291,7 @@ export default function DepartureDecisionCard({ timelineData }) {
             fontSize: 17,
           }}
         >
-          Leave home recommendation
+          Dynamic operational recommendation
         </div>
       </div>
 
@@ -263,7 +324,10 @@ export default function DepartureDecisionCard({ timelineData }) {
           }}
         >
           {decisionFactors.map((factor) => (
-            <DecisionFactor key={factor.label} factor={factor} />
+            <DecisionFactor
+              key={factor.label}
+              factor={factor}
+            />
           ))}
         </div>
       </div>
