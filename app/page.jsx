@@ -5,18 +5,84 @@ import { useEffect, useState } from "react";
 import DepartureDecisionCard from "../components/DepartureDecisionCard";
 import TimelineCard from "../components/TimelineCard";
 
+const ENGINE_URL =
+  "/api/home2flight-engine?flight=AF1195&origin=Lisboa&airport=LIS&mode=car";
+
 export default function Home() {
   const [timelineData, setTimelineData] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    async function loadTimeline() {
-      const response = await fetch("/api/timeline");
-      const json = await response.json();
-      setTimelineData(json);
+    async function loadHome2FlightEngine() {
+      try {
+        const response = await fetch(ENGINE_URL, {
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error(`Engine error: ${response.status}`);
+        }
+
+        const json = await response.json();
+
+        if (!json?.success) {
+          throw new Error(json?.error || "Home2Flight engine failed.");
+        }
+
+        setTimelineData(json);
+      } catch (err) {
+        setError(err.message);
+      }
     }
 
-    loadTimeline();
+    loadHome2FlightEngine();
   }, []);
+
+  if (error) {
+    return (
+      <main
+        style={{
+          minHeight: "100vh",
+          background: "#020617",
+          color: "white",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+          fontFamily: "Arial, sans-serif",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 420,
+            background: "rgba(255,255,255,0.08)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 24,
+            padding: 24,
+          }}
+        >
+          <h1 style={{ margin: "0 0 12px", fontSize: 28 }}>
+            Home2Flight Engine offline
+          </h1>
+
+          <p style={{ color: "#cbd5e1", lineHeight: 1.5, margin: 0 }}>
+            Não foi possível carregar o motor operacional neste momento.
+          </p>
+
+          <p
+            style={{
+              color: "#94a3b8",
+              fontSize: 13,
+              marginTop: 14,
+              wordBreak: "break-word",
+            }}
+          >
+            {error}
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   if (!timelineData) {
     return (
@@ -57,7 +123,7 @@ export default function Home() {
       >
         <DepartureDecisionCard timelineData={timelineData} />
 
-        <TimelineCard timeline={timelineData.timeline} />
+        <TimelineCard timeline={timelineData.timeline || []} />
       </div>
     </main>
   );
