@@ -5,9 +5,16 @@ export default async function handler(req, res) {
   const mode = String(req.query.mode || "car");
 
   try {
+    const baseUrl = buildBaseUrl(req);
+
     const flightData = await getFlightIntelligence(flight);
     const airportData = getAirportIntelligence(airport);
-    const routeData = getRouteIntelligence({ origin, airport, mode });
+    const routeData = await getRouteIntelligence({
+      origin,
+      airport,
+      mode,
+      baseUrl,
+    });
     const weatherData = getWeatherIntelligence(airport);
 
     const decision = buildDecision({
@@ -29,7 +36,7 @@ export default async function handler(req, res) {
       success: true,
       generatedAt: new Date().toISOString(),
       engine: "Home2Flight Unified Operational Engine",
-      version: "0.1.0",
+      version: "0.2.0",
       request: {
         flight,
         origin,
@@ -47,7 +54,9 @@ export default async function handler(req, res) {
       sourceBreakdown: {
         flightEngine: "aviationstack_live_or_safe_fallback",
         airportEngine: "internal_airport_profile",
-        routeEngine: "internal_route_profile",
+        routeEngine: routeData?.reliability?.liveDataActive
+          ? "google_maps_live_traffic"
+          : "internal_route_profile_fallback",
         weatherEngine: "internal_weather_profile",
         decisionEngine: "weighted_operational_reliability_model",
         timelineEngine: "dynamic_timeline_generation",
@@ -64,10 +73,16 @@ export default async function handler(req, res) {
       success: false,
       generatedAt: new Date().toISOString(),
       engine: "Home2Flight Unified Operational Engine",
-      version: "0.1.0",
+      version: "0.2.0",
       error: error.message,
     });
   }
+}
+
+function buildBaseUrl(req) {
+  const protocol = req.headers["x-forwarded-proto"] || "https";
+  const host = req.headers.host;
+  return `${protocol}://${host}`;
 }
 
 async function getFlightIntelligence(flightNumber) {
@@ -396,7 +411,36 @@ function getAirportIntelligence(airport) {
   };
 }
 
-function getRouteIntelligence({ origin, airport, mode }) {
+async function getRouteIntelligence({ origin, airport, mode, baseUrl }) {
+  try {
+    const url =
+      `${baseUrl}/api/engines/route-intelligence-engine` +
+      `?origin=${encodeURIComponent(origin)}` +
+      `&airport=${encodeURIComponent(airport)}` +
+      `&mode=${encodeURIComponent(mode)}`;
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data?.success) {
+      return {
+        ...data,
+        reliability: {
+          ...data.reliability,
+          limitations: data.reliability?.limitations || [
+            "Rota calculada com dados live do Google Maps Distance Matrix API.",
+          ],
+        },
+      };
+    }
+
+    return getRouteFallback({ origin, airport, mode });
+  } catch {
+    return getRouteFallback({ origin, airport, mode });
+  }
+}
+
+function getRouteFallback({ origin, airport, mode }) {
   const estimatedRouteMinutes = mode === "public_transport" ? 42 : 28;
   const dynamicBufferMinutes = mode === "public_transport" ? 30 : 25;
   const totalRecommendedRouteMinutes =
@@ -404,6 +448,9 @@ function getRouteIntelligence({ origin, airport, mode }) {
 
   return {
     success: true,
+    fallback: true,
+    engine: "Home2Flight Route Intelligence Fallback",
+    version: "0.1.0",
     route: {
       origin,
       destinationAirport: {
@@ -414,6 +461,9 @@ function getRouteIntelligence({ origin, airport, mode }) {
       },
       transportMode: mode,
       estimatedRouteMinutes,
+      baseDurationMinutes: estimatedRouteMinutes,
+      liveTrafficDurationMinutes: estimatedRouteMinutes,
+      trafficDeltaMinutes: 0,
       dynamicBufferMinutes,
       totalRecommendedRouteMinutes,
     },
@@ -563,8 +613,14 @@ function buildDecision({ flightData, airportData, routeData, weatherData }) {
     ? "medium"
     : "low";
 
+  const routeBuffer = routeData.route.dynamicBufferMinutes || 20;
+
   const dynamicBufferMinutes =
-    operationalRisk === "high" ? 50 : operationalRisk === "medium" ? 35 : 20;
+    operationalRisk === "high"
+      ? Math.max(50, routeBuffer)
+      : operationalRisk === "medium"
+      ? Math.max(25, routeBuffer)
+      : Math.max(15, routeBuffer);
 
   const flightDepartureTime =
     extractFlightTime(flightData.flight.departure.scheduled) || "18:50";
@@ -666,18 +722,23 @@ function buildTimeline({
       time: buildRelativeTime(departureTime, 0),
       title: "Sair de casa",
       category: "Transport",
-      status: routeRisk === "medium" ? "buffer" : "ready",
+      status: routeRisk === "medium" || routeRisk === "high" ? "buffer" : "ready",
       confidence: "Transport",
       confidenceScore: routeData.reliability.confidenceScore,
       trustLevel: routeData.reliability.trustLevel,
-      source: "Route engine",
-      sourceType: "route_engine",
-      buffer: `+${dynamicBuffer}m`,
+      source: routeData.reliability.liveDataActive
+        ? "Google Maps live traffic"
+        : "Route engine",
+      sourceType: routeData.reliability.sourceType,
+      buffer: `+${routeData.route.dynamicBufferMinutes || dynamicBuffer}m`,
       lastUpdatedMinutesAgo: 1,
-      recalculationStatus: "recalculated",
+      recalculationStatus: routeData.reliability.liveDataActive
+        ? "live_recalculated"
+        : "recalculated",
       liveInsight: routeData.intelligenceSummary.summary,
-      reasoning:
-        "Hora calculada considerando transporte, buffers dinâmicos e margem operacional.",
+      reasoning: routeData.reliability.liveDataActive
+        ? `Google Maps live: ${routeData.route.liveTrafficDurationMinutes} min · buffer ${routeData.route.dynamicBufferMinutes} min.`
+        : "Hora calculada considerando transporte, buffers dinâmicos e margem operacional.",
       intelligenceFlags: routeData.intelligenceFlags,
       operationalSignals: routeData.intelligenceFlags,
     },
