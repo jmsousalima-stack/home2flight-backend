@@ -58,16 +58,16 @@ function getTrustLabel(trustLevel) {
 }
 
 function getLiveLabel(item) {
-  if (item.recalculationStatus === "risk_adjusted") return "Risk adjusted";
-  if (item.recalculationStatus === "recalculated") return "Recalculated";
-  if (item.recalculationStatus === "monitoring") return "Monitoring";
-  if (item.status === "risk") return "Live risk";
-  if (item.status === "buffer") return "Live buffer";
+  if (item?.recalculationStatus === "risk_adjusted") return "Risk adjusted";
+  if (item?.recalculationStatus === "recalculated") return "Recalculated";
+  if (item?.recalculationStatus === "monitoring") return "Monitoring";
+  if (item?.status === "risk") return "Live risk";
+  if (item?.status === "buffer") return "Live buffer";
   return "Active";
 }
 
 function getPrimaryFlag(item) {
-  const flags = item.intelligenceFlags || item.operationalSignals || [];
+  const flags = item?.intelligenceFlags || item?.operationalSignals || [];
   return flags[0] || null;
 }
 
@@ -82,6 +82,30 @@ function getSignalStyle(severity = "medium") {
     default:
       return { bg: "#eef2f7", color: "#53627c" };
   }
+}
+
+function formatTimelineTime(item) {
+  const rawDate =
+    item?.recommendedTime ||
+    item?.time ||
+    item?.scheduledTime ||
+    item?.departureTime ||
+    null;
+
+  if (!rawDate) return "--:--";
+
+  const date = new Date(rawDate);
+
+  if (Number.isNaN(date.getTime())) return "--:--";
+
+  return date.toLocaleTimeString("pt-PT", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getItemKey(item, index) {
+  return item?.id || item?.step || `${item?.title || "timeline"}-${index}`;
 }
 
 export default function TimelineCard({ timeline = [] }) {
@@ -144,21 +168,18 @@ export default function TimelineCard({ timeline = [] }) {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
         {timeline.map((item, index) => {
-          const accent = getAccentColor(item.status);
-          const borderColor = getBorderColor(item.status);
-          const softBg = getSoftBackground(item.status);
-          const isLive = item.status === "risk" || item.status === "buffer";
-          const confidenceScore = item.confidenceScore ?? 0;
+          const status = item?.status || "ready";
+          const accent = getAccentColor(status);
+          const borderColor = getBorderColor(status);
+          const softBg = getSoftBackground(status);
+          const isLive = status === "risk" || status === "buffer";
+          const confidenceScore = item?.confidenceScore ?? 0;
           const primaryFlag = getPrimaryFlag(item);
-
-          const time = new Date(item.time).toLocaleTimeString("pt-PT", {
-            hour: "2-digit",
-            minute: "2-digit",
-          });
+          const time = formatTimelineTime(item);
 
           return (
             <article
-              key={item.id}
+              key={getItemKey(item, index)}
               style={{
                 background: "#ffffff",
                 border: `2px solid ${borderColor}`,
@@ -251,7 +272,7 @@ export default function TimelineCard({ timeline = [] }) {
                 <div
                   style={{
                     width: 92,
-                    height: 92,
+                    minHeight: 92,
                     borderRadius: 24,
                     background: softBg,
                     display: "flex",
@@ -259,6 +280,8 @@ export default function TimelineCard({ timeline = [] }) {
                     alignItems: "center",
                     justifyContent: "center",
                     flexShrink: 0,
+                    padding: "10px 6px",
+                    boxSizing: "border-box",
                   }}
                 >
                   <div
@@ -268,6 +291,7 @@ export default function TimelineCard({ timeline = [] }) {
                       color: accent,
                       lineHeight: 1,
                       marginBottom: 9,
+                      textAlign: "center",
                     }}
                   >
                     {time}
@@ -281,7 +305,7 @@ export default function TimelineCard({ timeline = [] }) {
                       color: accent,
                     }}
                   >
-                    {getStatusLabel(item.status)}
+                    {getStatusLabel(status)}
                   </div>
                 </div>
 
@@ -296,7 +320,7 @@ export default function TimelineCard({ timeline = [] }) {
                       margin: "0 0 8px",
                     }}
                   >
-                    {item.title}
+                    {item?.title}
                   </h3>
 
                   <div
@@ -307,7 +331,7 @@ export default function TimelineCard({ timeline = [] }) {
                       marginBottom: 14,
                     }}
                   >
-                    {item.category}
+                    {item?.category}
                   </div>
 
                   <ExecutiveInsight
@@ -325,24 +349,26 @@ export default function TimelineCard({ timeline = [] }) {
                     }}
                   >
                     <Tag text={`${confidenceScore}% confidence`} accent={accent} />
-                    <Tag text={getTrustLabel(item.trustLevel)} />
-                    {item.buffer && item.buffer !== "Pending" && (
+                    <Tag text={getTrustLabel(item?.trustLevel)} />
+                    {item?.buffer && item.buffer !== "Pending" && (
                       <Tag text={item.buffer} green />
                     )}
                   </div>
 
                   {primaryFlag && <SignalPill signal={primaryFlag} />}
 
-                  <p
-                    style={{
-                      fontSize: 15,
-                      lineHeight: 1.45,
-                      color: "#667085",
-                      margin: "0 0 14px",
-                    }}
-                  >
-                    {item.reasoning}
-                  </p>
+                  {item?.reasoning && (
+                    <p
+                      style={{
+                        fontSize: 15,
+                        lineHeight: 1.45,
+                        color: "#667085",
+                        margin: "0 0 14px",
+                      }}
+                    >
+                      {item.reasoning}
+                    </p>
+                  )}
 
                   <div
                     style={{
@@ -364,7 +390,7 @@ export default function TimelineCard({ timeline = [] }) {
                         flexShrink: 0,
                       }}
                     />
-                    Updated {item.lastUpdatedMinutesAgo ?? 2} min ago
+                    Updated {item?.lastUpdatedMinutesAgo ?? 2} min ago
                   </div>
                 </div>
               </div>
@@ -377,6 +403,12 @@ export default function TimelineCard({ timeline = [] }) {
 }
 
 function ExecutiveInsight({ item, accent, confidenceScore }) {
+  const insight =
+    item?.liveInsight ||
+    item?.operationalInsight?.[0] ||
+    item?.reasoning ||
+    "Timeline step generated by operational engine.";
+
   return (
     <div
       style={{
@@ -428,14 +460,14 @@ function ExecutiveInsight({ item, accent, confidenceScore }) {
           fontWeight: 800,
         }}
       >
-        {item.liveInsight || item.reasoning}
+        {insight}
       </div>
     </div>
   );
 }
 
 function LiveBadge({ item, accent, softBg }) {
-  const isLive = item.status === "risk" || item.status === "buffer";
+  const isLive = item?.status === "risk" || item?.status === "buffer";
 
   return (
     <div
@@ -483,7 +515,7 @@ function LiveBadge({ item, accent, softBg }) {
 }
 
 function SignalPill({ signal }) {
-  const signalStyle = getSignalStyle(signal.severity);
+  const signalStyle = getSignalStyle(signal?.severity);
 
   return (
     <div
@@ -499,7 +531,7 @@ function SignalPill({ signal }) {
         marginBottom: 14,
       }}
     >
-      {signal.label}
+      {signal?.label}
     </div>
   );
 }
