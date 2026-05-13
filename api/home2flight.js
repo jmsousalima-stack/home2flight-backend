@@ -292,37 +292,119 @@ const timeline = [
     title: "Preparar documentos e essenciais",
     recommendedTime: subtractMinutes(leaveHomeTime, 90),
     category: "preparation",
-    status: "ready",
     confidenceScore: 88,
     trustLevel: "high",
+    status: "ready",
+    dynamicStatus: "stable",
     source: "User checklist",
     liveInsight:
       "Preparação antecipada recomendada para reduzir fricção antes da saída.",
     reasoning:
       "Documentos, cartões, bagagem essencial e itens das crianças devem estar prontos antes da decisão de saída.",
+    operationalSignals: [],
   },
+
   {
     step: "online_checkin",
     title: "Confirmar check-in online",
     recommendedTime: subtractMinutes(leaveHomeTime, 60),
     category: "flight",
-    status: isCheckedIn ? "ready" : "buffer",
     confidenceScore: 82,
-    trustLevel: "medium",
+    trustLevel: isCheckedIn ? "high" : "medium",
+    status: isCheckedIn ? "ready" : "buffer",
+    dynamicStatus: isCheckedIn ? "stable" : "attention",
     source: "Flight preparation model",
     liveInsight: isCheckedIn
-      ? "Check-in online já confirmado, reduzindo variabilidade no aeroporto."
+      ? "Check-in online confirmado."
       : "Check-in online ainda não confirmado. A timeline adiciona margem operacional.",
-    reasoning:
-      "A confirmação antecipada do check-in reduz dependência de balcões e filas no aeroporto.",
-    intelligenceFlags: !isCheckedIn
-      ? [
+    reasoning: isCheckedIn
+      ? "Passageiro já preparado para entrada direta na jornada aeroportuária."
+      : "A confirmação antecipada do check-in reduz dependência de balcões e filas no aeroporto.",
+    operationalSignals: isCheckedIn
+      ? []
+      : [
           {
-            type: "check_in_pending",
+            type: "checkin_pending",
             label: "Check-in online por confirmar",
             severity: "medium",
           },
-        ]
+        ],
+  },
+
+  {
+    step: "leave_home",
+    title: "Sair de casa",
+    recommendedTime: leaveHomeTime,
+    category: "transport",
+    confidenceScore: transport === "public" ? 70 : 82,
+    trustLevel: transport === "public" ? "medium" : "high",
+    status: transport === "public" ? "buffer" : "ready",
+    dynamicStatus:
+      transport === "public" ? "transport_monitoring" : "stable",
+    source: "Transport profile",
+    liveInsight:
+      transport === "public"
+        ? "Transporte público exige margem adicional por depender de horários e possíveis esperas."
+        : "Trajeto privado apresenta variabilidade reduzida.",
+    reasoning:
+      transport === "public"
+        ? `Saída calculada com ${baseTravelMinutes} min de trajeto e ${transportBuffer} min de buffer de transporte.`
+        : "Saída otimizada para trajeto privado com menor variabilidade operacional.",
+    operationalSignals:
+      transport === "public"
+        ? [
+            {
+              type: "public_transport",
+              label: "Dependência de transporte público",
+              severity: "medium",
+            },
+          ]
+        : [],
+    buffer:
+      transport === "public"
+        ? `+${transportBuffer} min`
+        : undefined,
+  },
+
+  {
+    step: "arrive_airport",
+    title: "Chegar ao aeroporto",
+    recommendedTime: airportArrivalTime,
+    category: "airport",
+    confidenceScore: airportOperational.confidenceScore,
+    trustLevel:
+      airportOperational.confidenceLevel === "low"
+        ? "low"
+        : "medium",
+    status:
+      airportOperational.airportRisk === "high"
+        ? "risk"
+        : "buffer",
+    dynamicStatus: "airport_monitoring",
+    source: airportOperational.sourceType,
+    liveInsight: airportIntel.reasoning[0],
+    reasoning: `Chegada recomendada com ${airportOperational.recommendedAirportBuffer} min de buffer aeroportuário, incluindo segurança, deslocação interna e variabilidade operacional.`,
+    operationalSignals: airportIntel.intelligenceFlags || [],
+    buffer: `+${airportOperational.recommendedAirportBuffer} min`,
+  },
+
+  {
+    step: "departure",
+    title: "Partida do voo",
+    recommendedTime: departureDate,
+    category: "flight",
+    confidenceScore: 80,
+    trustLevel: "medium",
+    status: "ready",
+    dynamicStatus: "flight_tracking",
+    source: "Flight schedule",
+    liveInsight:
+      "Hora de partida usada como âncora principal para calcular toda a timeline.",
+    reasoning:
+      "Todos os passos anteriores são calculados de trás para a frente a partir da hora prevista de partida.",
+    operationalSignals: [],
+  },
+];
       : [],
   },
   {
