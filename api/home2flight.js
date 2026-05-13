@@ -286,50 +286,106 @@ export default async function handler(req, res) {
     // TIMELINE
     // =========================
 
-    const timeline = [
-      {
-        step: "prepare_documents",
-        title: "Preparar documentos e essenciais",
-        recommendedTime: subtractMinutes(leaveHomeTime, 90),
-        category: "preparation",
-        confidenceScore: 88,
-        source: "User checklist",
-      },
-      {
-        step: "online_checkin",
-        title: "Confirmar check-in online",
-        recommendedTime: subtractMinutes(leaveHomeTime, 60),
-        category: "flight",
-        confidenceScore: 82,
-        source: "Flight preparation model",
-      },
-      {
-        step: "leave_home",
-        title: "Sair de casa",
-        recommendedTime: leaveHomeTime,
-        category: "transport",
-        confidenceScore: transport === "public" ? 70 : 82,
-        source: "Transport profile",
-      },
-      {
-        step: "arrive_airport",
-        title: "Chegar ao aeroporto",
-        recommendedTime: airportArrivalTime,
-        category: "airport",
-        confidenceScore: airportOperational.confidenceScore,
-        source: airportOperational.sourceType,
-        operationalInsight: airportIntel.reasoning,
-        intelligenceFlags: airportIntel.intelligenceFlags,
-      },
-      {
-        step: "departure",
-        title: "Partida do voo",
-        recommendedTime: departureDate,
-        category: "flight",
-        confidenceScore: 80,
-        source: "Flight schedule",
-      },
-    ];
+const timeline = [
+  {
+    step: "prepare_documents",
+    title: "Preparar documentos e essenciais",
+    recommendedTime: subtractMinutes(leaveHomeTime, 90),
+    category: "preparation",
+    status: "ready",
+    confidenceScore: 88,
+    trustLevel: "high",
+    source: "User checklist",
+    liveInsight:
+      "Preparação antecipada recomendada para reduzir fricção antes da saída.",
+    reasoning:
+      "Documentos, cartões, bagagem essencial e itens das crianças devem estar prontos antes da decisão de saída.",
+  },
+  {
+    step: "online_checkin",
+    title: "Confirmar check-in online",
+    recommendedTime: subtractMinutes(leaveHomeTime, 60),
+    category: "flight",
+    status: isCheckedIn ? "ready" : "buffer",
+    confidenceScore: 82,
+    trustLevel: "medium",
+    source: "Flight preparation model",
+    liveInsight: isCheckedIn
+      ? "Check-in online já confirmado, reduzindo variabilidade no aeroporto."
+      : "Check-in online ainda não confirmado. A timeline adiciona margem operacional.",
+    reasoning:
+      "A confirmação antecipada do check-in reduz dependência de balcões e filas no aeroporto.",
+    intelligenceFlags: !isCheckedIn
+      ? [
+          {
+            type: "check_in_pending",
+            label: "Check-in online por confirmar",
+            severity: "medium",
+          },
+        ]
+      : [],
+  },
+  {
+    step: "leave_home",
+    title: "Sair de casa",
+    recommendedTime: leaveHomeTime,
+    category: "transport",
+    status: transport === "public" ? "buffer" : "ready",
+    confidenceScore: transport === "public" ? 70 : 82,
+    trustLevel: transport === "public" ? "medium" : "high",
+    source: "Transport profile",
+    buffer: transport === "public" ? "+25 min" : "+12 min",
+    liveInsight:
+      transport === "public"
+        ? "Transporte público exige margem adicional por depender de horários e possíveis esperas."
+        : "Transporte privado com margem operacional aplicada ao trajeto.",
+    reasoning:
+      transport === "public"
+        ? `Saída calculada com ${baseTravelMinutes} min de trajeto e ${transportBuffer} min de buffer de transporte.`
+        : `Saída calculada com ${baseTravelMinutes} min de trajeto e ${transportBuffer} min de buffer.`,
+    intelligenceFlags:
+      transport === "public"
+        ? [
+            {
+              type: "public_transport_dependency",
+              label: "Dependência de transporte público",
+              severity: "medium",
+            },
+          ]
+        : [],
+  },
+  {
+    step: "arrive_airport",
+    title: "Chegar ao aeroporto",
+    recommendedTime: airportArrivalTime,
+    category: "airport",
+    status: airportOperational.airportRisk === "low" ? "ready" : "buffer",
+    confidenceScore: airportOperational.confidenceScore,
+    trustLevel: airportOperational.confidenceLevel,
+    source: airportOperational.sourceType,
+    buffer: `+${airportOperational.recommendedAirportBuffer} min`,
+    liveInsight:
+      airportIntel.reasoning?.[0] ||
+      "Chegada ao aeroporto calculada pelo Airport Intelligence Engine.",
+    reasoning: `Chegada recomendada com ${airportOperational.recommendedAirportBuffer} min de buffer aeroportuário, incluindo segurança, deslocação interna e variabilidade operacional.`,
+    operationalInsight: airportIntel.reasoning,
+    intelligenceFlags: airportIntel.intelligenceFlags,
+  },
+  {
+    step: "departure",
+    title: "Partida do voo",
+    recommendedTime: departureDate,
+    category: "flight",
+    status: "ready",
+    confidenceScore: 80,
+    trustLevel: "medium",
+    source: "Flight schedule",
+    liveInsight:
+      "Hora de partida usada como âncora principal para calcular toda a timeline.",
+    reasoning:
+      "Todos os passos anteriores são calculados de trás para a frente a partir da hora prevista de partida.",
+  },
+];
 
     // =========================
     // UI SUMMARY
