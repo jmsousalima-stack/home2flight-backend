@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 
 import DepartureDecisionCard from "../components/DepartureDecisionCard";
 import LiveOperationalMonitor from "../components/LiveOperationalMonitor";
+import ReliabilityCard from "../components/ReliabilityCard";
 import TimelineCard from "../components/TimelineCard";
 
 const ENGINE_URL =
-  "/api/home2flight-live-engine?flight=AF1195&origin=Lisboa&airport=LIS&mode=car";
+  "/api/home2flight?flight=AF1195&airport=LIS&airline=AF&terminal=1&bags=true&kids=true&checkedIn=false&flightType=passport&transport=public";
 
 export default function Home() {
   const [timelineData, setTimelineData] = useState(null);
@@ -28,7 +29,7 @@ export default function Home() {
 
         if (!json?.success) {
           throw new Error(
-            json?.error || "Home2Flight live engine failed."
+            json?.error || "Home2Flight engine failed."
           );
         }
 
@@ -64,22 +65,11 @@ export default function Home() {
             padding: 24,
           }}
         >
-          <h1
-            style={{
-              margin: "0 0 12px",
-              fontSize: 28,
-            }}
-          >
+          <h1 style={{ margin: "0 0 12px", fontSize: 28 }}>
             Home2Flight Engine offline
           </h1>
 
-          <p
-            style={{
-              color: "#cbd5e1",
-              lineHeight: 1.5,
-              margin: 0,
-            }}
-          >
+          <p style={{ color: "#cbd5e1", lineHeight: 1.5, margin: 0 }}>
             Não foi possível carregar o motor operacional neste momento.
           </p>
 
@@ -111,7 +101,7 @@ export default function Home() {
           fontFamily: "Arial, sans-serif",
         }}
       >
-        Loading Home2Flight Live Engine...
+        Loading Home2Flight Engine...
       </main>
     );
   }
@@ -139,13 +129,11 @@ export default function Home() {
           monitor={timelineData?.liveOperationalMonitor}
         />
 
-        <DepartureDecisionCard
-          timelineData={timelineData}
-        />
+        <DepartureDecisionCard timelineData={timelineData} />
 
-        <TimelineCard
-          timeline={timelineData?.timeline || []}
-        />
+        <ReliabilityCard data={timelineData} />
+
+        <TimelineCard timeline={timelineData?.timeline || []} />
       </div>
     </main>
   );
