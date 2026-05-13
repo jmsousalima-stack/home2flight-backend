@@ -98,7 +98,7 @@ export default async function handler(req, res) {
           country: "France",
         },
       },
-      departure: "2026-05-08T16:40:00",
+      departure: "2026-05-08T16:40:00+01:00",
       status: "monitoring",
     };
 
