@@ -1,623 +1,434 @@
-export default async function handler(req, res) {
-  const {
-    flight = "AF1195",
-    bags = "true",
-    kids = "true",
-    checkedIn = "false",
-    flightType = "passport",
-    transport = "public",
-  } = req.query;
-
-  // =========================
-  // MOCK FLIGHT DATA
-  // =========================
-
-  const flightData = {
-    number: flight,
-
-    airline: "Air France",
-
-    route: {
-      airline: "Air France",
-
-      from: {
-        code: "LIS",
-        name: "Lisboa Humberto Delgado",
-        country: "Portugal",
-      },
-
-      to: {
-        code: "CDG",
-        name: "Paris Charles de Gaulle",
-        country: "France",
-      },
-    },
-
-    departure: "2026-05-08T16:40:00",
-
-    status: "delayed",
-  };
-
-  // =========================
-  // USER CONTEXT
-  // =========================
-
-  const userContext = {
-    bags: bags === "true",
-
-    kids: kids === "true",
-
-    checkedIn: checkedIn === "true",
-
-    flightType,
-
-    transport,
-  };
-
-  // =========================
-  // AIRPORT PROFILE
-  // =========================
-
-  const airportRisk = "high";
-
-  const airportProcessMinutes = {
-    security: 36,
-
-    bagDrop: 26,
-
-    passport: 30,
-
-    gateWalk: 35,
-  };
-
-  const airportTotal =
-    airportProcessMinutes.security +
-    airportProcessMinutes.bagDrop +
-    airportProcessMinutes.passport +
-    airportProcessMinutes.gateWalk;
-
-  // =========================
-  // OPERATIONAL SIGNALS
-  // =========================
-
-  const operationalSignals = [
-    {
-      type: "airport_complexity",
-
-      severity: "high",
-
-      title:
-        "Aeroporto complexo com maior variabilidade operacional",
-
-      impactMinutes: 20,
-
-      source: "Home2Flight Operational Profile",
-
-      verified: true,
-    },
-
-    {
-      type: "connection_pressure",
-
-      severity: "medium",
-
-      title:
-        "Maior risco de filas e deslocações internas longas",
-
-      impactMinutes: 12,
-
-      source: "Home2Flight Airport Profile",
-
-      verified: true,
-    },
-  ];
-
-  const operationalImpactMinutes = operationalSignals.reduce(
-    (acc, item) => acc + item.impactMinutes,
-    0
-  );
-
-  // =========================
-  // COMMUNITY SIGNALS
-  // =========================
-
-  const communityReports = [
-    {
-      type: "terminal_movement",
-
-      severity: "medium",
-
-      title:
-        "Deslocações internas demoradas reportadas",
-
-      reportedMinutesAgo: 35,
-
-      confidence: "medium",
-
-      impactMinutes: 12,
-
-      source: "community_report",
-
-      verified: false,
-    },
-
-    {
-      type: "security_queue",
-
-      severity: "high",
-
-      title: "Fila de segurança longa reportada",
-
-      reportedMinutesAgo: 14,
-
-      confidence: "medium",
-
-      impactMinutes: 18,
-
-      source: "community_report",
-
-      verified: false,
-    },
-  ];
-
-  const communityImpactMinutes = communityReports.reduce(
-    (acc, item) => acc + item.impactMinutes,
-    0
-  );
-
-  // =========================
-  // TRANSPORT
-  // =========================
-
-  const baseTravelMinutes = 40;
-
-  let transportBuffer = 10;
-
-  if (transport === "public") {
-    transportBuffer = 25;
-  }
-
-  // =========================
-  // SAFETY BUFFER
-  // =========================
-
-  const safetyBufferMinutes = 25;
-
-  // =========================
-  // TOTALS
-  // =========================
-
-  const airportArrivalMinutesBeforeDeparture =
-    airportTotal +
-    operationalImpactMinutes +
-    communityImpactMinutes +
-    safetyBufferMinutes;
-
-  const leaveHomeMinutesBeforeDeparture =
-    airportArrivalMinutesBeforeDeparture +
-    baseTravelMinutes +
-    transportBuffer;
-
-  // =========================
-  // RELIABILITY ENGINE
-  // =========================
-
-  let reliabilityScore = 100;
-
-  const reliabilityAdjustments = [];
-
-  reliabilityScore -= 15;
-
-  reliabilityAdjustments.push({
-    factor: "airport_risk",
-
-    impact: -15,
-
-    reason:
-      "Aeroporto com maior complexidade operacional",
-  });
-
-  reliabilityScore -= 5;
-
-  reliabilityAdjustments.push({
-    factor: "flight_status",
-
-    impact: -5,
-
-    reason: "Voo com atraso operacional",
-  });
-
-  reliabilityScore -= 10;
-
-  reliabilityAdjustments.push({
-    factor: "live_data",
-
-    impact: -10,
-
-    reason:
-      "Ainda sem integrações oficiais live",
-  });
-
-  reliabilityScore -= 10;
-
-  reliabilityAdjustments.push({
-    factor: "alerts",
-
-    impact: -10,
-
-    reason:
-      "Alertas operacionais relevantes ativos",
-  });
-
-  reliabilityScore -= 12;
-
-  reliabilityAdjustments.push({
-    factor: "operational_intelligence",
-
-    impact: -12,
-
-    reason:
-      "Sinais operacionais relevantes aumentam a incerteza",
-  });
-
-  if (userContext.kids) {
-    reliabilityScore -= 3;
-
-    reliabilityAdjustments.push({
-      factor: "kids",
-
-      impact: -3,
-
-      reason:
-        "Viagem com crianças aumenta variabilidade",
-    });
-  }
-
-  if (userContext.transport === "public") {
-    reliabilityScore -= 4;
-
-    reliabilityAdjustments.push({
-      factor: "transport",
-
-      impact: -4,
-
-      reason:
-        "Dependência de transportes públicos",
-    });
-  }
-
-  reliabilityScore = Math.max(
-    0,
-    Math.min(100, reliabilityScore)
-  );
-
-  // =========================
-  // CONFIDENCE ENGINE
-  // =========================
-
-  let confidenceScore = 60;
-
-  const confidenceStrengths = [];
-
-  const confidenceWeaknesses = [];
-
-  confidenceScore += 8;
-
-  confidenceStrengths.push(
-    "Reports comunitários ajudam a detetar fricções recentes."
-  );
-
-  confidenceScore += 10;
-
-  confidenceStrengths.push(
-    "Sinais operacionais ajudam a antecipar instabilidade."
-  );
-
-  confidenceWeaknesses.push(
-    "Ainda sem integrações oficiais live."
-  );
-
-  confidenceScore -= 12;
-
-  confidenceWeaknesses.push(
-    "Aeroporto com elevada variabilidade operacional."
-  );
-
-  if (reliabilityScore < 40) {
-    confidenceScore -= 10;
-
-    confidenceWeaknesses.push(
-      "Plano geral apresenta baixa robustez operacional."
-    );
-  }
-
-  confidenceScore = Math.max(
-    0,
-    Math.min(100, confidenceScore)
-  );
-
-  let confidenceLevel = "medium";
-
-  if (confidenceScore >= 80) {
-    confidenceLevel = "high";
-  } else if (confidenceScore < 55) {
-    confidenceLevel = "low";
-  }
-
-  // =========================
-  // READINESS ENGINE
-  // =========================
-
-  const readinessScore = reliabilityScore + 12;
-
-  let readinessLabel = "Estável";
-
-  if (readinessScore < 45) {
-    readinessLabel = "Crítica";
-  } else if (readinessScore < 70) {
-    readinessLabel = "Sensível";
-  }
-
-  // =========================
-  // SMART RECOMMENDATIONS
-  // =========================
-
-  const recommendations = [];
-
-  recommendations.push({
-    type: "check_in",
-
-    priority: "high",
-
-    title:
-      "Faz o check-in online antes de sair",
-  });
-
-  recommendations.push({
-    type: "transport",
-
-    priority: "high",
-
-    title:
-      "Evita dependência excessiva de transportes públicos",
-  });
-
-  recommendations.push({
-    type: "airport_margin",
-
-    priority: "critical",
-
-    title:
-      "Mantém margem adicional neste aeroporto",
-  });
-
-  // =========================
-  // TIMELINE
-  // =========================
-
-  const departureDate = new Date(
-    flightData.departure
-  );
-
-  const leaveHomeTime = new Date(
-    departureDate.getTime() -
-      leaveHomeMinutesBeforeDeparture * 60000
-  );
-
-  const airportArrivalTime = new Date(
-    departureDate.getTime() -
-      airportArrivalMinutesBeforeDeparture * 60000
-  );
-
-  const timeline = [
-    {
-      step: "prepare_documents",
-
-      title:
-        "Preparar documentos e essenciais",
-
-      recommendedTime: new Date(
-        leaveHomeTime.getTime() - 90 * 60000
-      ),
-
-      category: "preparation",
-    },
-
-    {
-      step: "online_checkin",
-
-      title:
-        "Confirmar check-in online",
-
-      recommendedTime: new Date(
-        leaveHomeTime.getTime() - 60 * 60000
-      ),
-
-      category: "flight",
-    },
-
-    {
-      step: "leave_home",
-
-      title: "Sair de casa",
-
-      recommendedTime: leaveHomeTime,
-
-      category: "transport",
-    },
-
-    {
-      step: "arrive_airport",
-
-      title: "Chegar ao aeroporto",
-
-      recommendedTime: airportArrivalTime,
-
-      category: "airport",
-    },
-
-    {
-      step: "departure",
-
-      title: "Partida do voo",
-
-      recommendedTime: departureDate,
-
-      category: "flight",
-    },
-  ];
-
-  // =========================
-  // UI SUMMARY
-  // =========================
-
-  let uiStatus = "warning";
-
-  if (reliabilityScore >= 70) {
-    uiStatus = "good";
-  } else if (reliabilityScore < 40) {
-    uiStatus = "critical";
-  }
-
-  let headline =
-    "Plano com margem operacional sensível";
-
-  let shortMessage =
-    "Recomendada atenção adicional ao trajeto e aeroporto.";
-
+// /api/home2flight.js
+
+import { getAirportOperationalIntelligence } from "./engines/airport-intelligence-engine";
+
+function toBoolean(value, fallback = false) {
+  if (value === undefined || value === null) return fallback;
+  return String(value).toLowerCase() === "true";
+}
+
+function addMinutes(date, minutes) {
+  return new Date(date.getTime() + minutes * 60000);
+}
+
+function subtractMinutes(date, minutes) {
+  return new Date(date.getTime() - minutes * 60000);
+}
+
+function getRiskFromScore(score) {
+  if (score >= 80) return "high";
+  if (score >= 55) return "medium";
+  return "low";
+}
+
+function getUiStatus(reliabilityScore) {
+  if (reliabilityScore >= 70) return "good";
+  if (reliabilityScore < 45) return "critical";
+  return "warning";
+}
+
+function getConfidenceLabel(level) {
+  if (level === "high") return "Confiança elevada";
+  if (level === "medium") return "Confiança moderada";
+  return "Confiança reduzida";
+}
+
+function getReliabilityLabel(score) {
+  if (score >= 70) return "Fiável";
+  if (score >= 45) return "Sensível";
+  return "Frágil";
+}
+
+function getHeadline(uiStatus) {
   if (uiStatus === "good") {
-    headline =
-      "Plano estável e dentro da margem recomendada";
-
-    shortMessage =
-      "O plano apresenta boa margem operacional.";
+    return {
+      headline: "Plano estável e dentro da margem recomendada",
+      shortMessage: "O plano apresenta boa margem operacional.",
+    };
   }
 
   if (uiStatus === "critical") {
-    headline =
-      "Plano operacionalmente frágil";
-
-    shortMessage =
-      "Existem vários fatores de risco ativos neste trajeto.";
+    return {
+      headline: "Plano operacionalmente frágil",
+      shortMessage: "Existem vários fatores de risco ativos neste trajeto.",
+    };
   }
 
-  const mainRiskFactors = reliabilityAdjustments
-    .filter((item) => item.impact <= -10)
-    .map((item) => item.reason);
+  return {
+    headline: "Plano com margem operacional sensível",
+    shortMessage: "Recomendada atenção adicional ao trajeto e aeroporto.",
+  };
+}
 
-  const keyActions = recommendations.map(
-    (item) => item.title
-  );
+export default async function handler(req, res) {
+  try {
+    const {
+      flight = "AF1195",
+      airport = "LIS",
+      airline = "AF",
+      terminal = "1",
+      bags = "true",
+      kids = "true",
+      checkedIn = "false",
+      flightType = "passport",
+      transport = "public",
+    } = req.query;
 
-  // =========================
-  // FINAL RESPONSE
-  // =========================
+    const hasBags = toBoolean(bags, true);
+    const hasKids = toBoolean(kids, true);
+    const isCheckedIn = toBoolean(checkedIn, false);
 
-  res.status(200).json({
-    uiSummary: {
-      status: uiStatus,
+    // =========================
+    // TEMP FLIGHT DATA
+    // =========================
 
-      headline,
+    const flightData = {
+      number: flight,
+      airline: "Air France",
+      airlineCode: airline,
+      route: {
+        from: {
+          code: airport,
+          name: "Lisboa Humberto Delgado",
+          country: "Portugal",
+        },
+        to: {
+          code: "CDG",
+          name: "Paris Charles de Gaulle",
+          country: "France",
+        },
+      },
+      departure: "2026-05-08T16:40:00",
+      status: "monitoring",
+    };
 
-      shortMessage,
+    const departureDate = new Date(flightData.departure);
 
-      confidenceLabel:
-        confidenceLevel === "high"
-          ? "Confiança elevada"
-          : confidenceLevel === "medium"
-          ? "Confiança moderada"
-          : "Confiança reduzida",
+    // =========================
+    // USER CONTEXT
+    // =========================
 
-      reliabilityLabel:
-        reliabilityScore >= 70
-          ? "Fiável"
-          : reliabilityScore >= 45
-          ? "Sensível"
-          : "Frágil",
+    const userContext = {
+      bags: hasBags,
+      kids: hasKids,
+      checkedIn: isCheckedIn,
+      flightType,
+      transport,
+    };
 
-      readinessLabel,
+    // =========================
+    // AIRPORT INTELLIGENCE ENGINE v2
+    // =========================
 
-      mainRiskFactors,
+    const airportIntel = await getAirportOperationalIntelligence({
+      airport,
+      airline,
+      terminal,
+      departureTime: departureDate.toISOString(),
+      passengerProfile: {
+        travellingWithKids: hasKids,
+        checkedInOnline: isCheckedIn,
+      },
+      baggageProfile: {
+        checkedBags: hasBags ? 1 : 0,
+      },
+    });
 
-      keyActions,
-    },
+    const airportOperational =
+      airportIntel.operationalIntelligence;
 
-    decision: {
-      headline,
+    const airportArrivalMinutesBeforeDeparture =
+      airportOperational.recommendedAirportBuffer +
+      (flightType === "passport" ? 12 : 0) +
+      (hasKids ? 10 : 0) +
+      (!isCheckedIn ? 8 : 0);
 
-      leaveHomeTime,
+    // =========================
+    // TRANSPORT
+    // =========================
 
-      airportArrivalTime,
+    const baseTravelMinutes = transport === "public" ? 40 : 25;
+    const transportBuffer = transport === "public" ? 25 : 12;
 
-      departureTime: departureDate,
-    },
+    const leaveHomeMinutesBeforeDeparture =
+      airportArrivalMinutesBeforeDeparture +
+      baseTravelMinutes +
+      transportBuffer;
 
-    flight: flightData,
+    const leaveHomeTime = subtractMinutes(
+      departureDate,
+      leaveHomeMinutesBeforeDeparture
+    );
 
-    userContext,
+    const airportArrivalTime = subtractMinutes(
+      departureDate,
+      airportArrivalMinutesBeforeDeparture
+    );
 
-    timingBreakdown: {
-      airportProcessMinutes: airportTotal,
+    // =========================
+    // RELIABILITY
+    // =========================
 
-      operationalImpactMinutes,
+    let reliabilityScore = 100;
+    const reliabilityAdjustments = [];
 
-      communityImpactMinutes,
+    reliabilityScore -= Math.round(
+      airportOperational.airportRiskScore * 0.35
+    );
 
-      baseTravelMinutes,
+    reliabilityAdjustments.push({
+      factor: "airport_intelligence",
+      impact: -Math.round(airportOperational.airportRiskScore * 0.35),
+      reason: `Aeroporto avaliado com risco ${airportOperational.airportRisk}.`,
+    });
 
-      transportBuffer,
+    if (!airportOperational.liveDataActive) {
+      reliabilityScore -= 10;
+      reliabilityAdjustments.push({
+        factor: "live_data",
+        impact: -10,
+        reason: "Ainda sem dados aeroportuários live oficiais.",
+      });
+    }
 
-      safetyBufferMinutes,
+    if (hasKids) {
+      reliabilityScore -= 4;
+      reliabilityAdjustments.push({
+        factor: "kids",
+        impact: -4,
+        reason: "Viagem com crianças aumenta variabilidade.",
+      });
+    }
 
-      airportArrivalMinutesBeforeDeparture,
+    if (transport === "public") {
+      reliabilityScore -= 6;
+      reliabilityAdjustments.push({
+        factor: "transport",
+        impact: -6,
+        reason: "Dependência de transportes públicos.",
+      });
+    }
 
-      leaveHomeMinutesBeforeDeparture,
-    },
+    if (!isCheckedIn) {
+      reliabilityScore -= 5;
+      reliabilityAdjustments.push({
+        factor: "check_in",
+        impact: -5,
+        reason: "Check-in online ainda não confirmado.",
+      });
+    }
 
-    reliability: {
-      score: reliabilityScore,
+    reliabilityScore = Math.max(0, Math.min(100, reliabilityScore));
 
-      confidence: "Baixa",
+    // =========================
+    // CONFIDENCE
+    // =========================
 
-      riskLevel: "high",
+    const confidenceScore = airportOperational.confidenceScore;
 
-      explanation: {
-        summary:
-          "Pontuação calculada com base em aeroporto, voo, alertas, sinais operacionais e contexto do utilizador.",
+    const confidenceLevel = airportOperational.confidenceLevel;
+
+    const confidenceStrengths = [
+      "Motor aeroportuário estruturado por camadas.",
+      "Decisão considera terminal, companhia, segurança, bagagem e perfil do passageiro.",
+    ];
+
+    const confidenceWeaknesses = airportIntel.limitations;
+
+    // =========================
+    // READINESS
+    // =========================
+
+    const readinessScore = Math.max(
+      0,
+      Math.min(100, reliabilityScore + 10)
+    );
+
+    let readinessLabel = "Estável";
+
+    if (readinessScore < 45) {
+      readinessLabel = "Crítica";
+    } else if (readinessScore < 70) {
+      readinessLabel = "Sensível";
+    }
+
+    // =========================
+    // RECOMMENDATIONS
+    // =========================
+
+    const recommendations = [];
+
+    if (!isCheckedIn) {
+      recommendations.push({
+        type: "check_in",
+        priority: "high",
+        title: "Faz o check-in online antes de sair",
+      });
+    }
+
+    if (transport === "public") {
+      recommendations.push({
+        type: "transport",
+        priority: "high",
+        title: "Confirma horários dos transportes antes de sair",
+      });
+    }
+
+    if (airportOperational.airportRisk !== "low") {
+      recommendations.push({
+        type: "airport_margin",
+        priority: "critical",
+        title: "Mantém margem adicional neste aeroporto",
+      });
+    }
+
+    // =========================
+    // TIMELINE
+    // =========================
+
+    const timeline = [
+      {
+        step: "prepare_documents",
+        title: "Preparar documentos e essenciais",
+        recommendedTime: subtractMinutes(leaveHomeTime, 90),
+        category: "preparation",
+        confidenceScore: 88,
+        source: "User checklist",
+      },
+      {
+        step: "online_checkin",
+        title: "Confirmar check-in online",
+        recommendedTime: subtractMinutes(leaveHomeTime, 60),
+        category: "flight",
+        confidenceScore: 82,
+        source: "Flight preparation model",
+      },
+      {
+        step: "leave_home",
+        title: "Sair de casa",
+        recommendedTime: leaveHomeTime,
+        category: "transport",
+        confidenceScore: transport === "public" ? 70 : 82,
+        source: "Transport profile",
+      },
+      {
+        step: "arrive_airport",
+        title: "Chegar ao aeroporto",
+        recommendedTime: airportArrivalTime,
+        category: "airport",
+        confidenceScore: airportOperational.confidenceScore,
+        source: airportOperational.sourceType,
+        operationalInsight: airportIntel.reasoning,
+        intelligenceFlags: airportIntel.intelligenceFlags,
+      },
+      {
+        step: "departure",
+        title: "Partida do voo",
+        recommendedTime: departureDate,
+        category: "flight",
+        confidenceScore: 80,
+        source: "Flight schedule",
+      },
+    ];
+
+    // =========================
+    // UI SUMMARY
+    // =========================
+
+    const uiStatus = getUiStatus(reliabilityScore);
+    const { headline, shortMessage } = getHeadline(uiStatus);
+
+    const mainRiskFactors = reliabilityAdjustments
+      .filter((item) => item.impact <= -8)
+      .map((item) => item.reason);
+
+    const keyActions = recommendations.map((item) => item.title);
+
+    // =========================
+    // FINAL RESPONSE
+    // =========================
+
+    return res.status(200).json({
+      success: true,
+
+      uiSummary: {
+        status: uiStatus,
+        headline,
+        shortMessage,
+        confidenceLabel: getConfidenceLabel(confidenceLevel),
+        reliabilityLabel: getReliabilityLabel(reliabilityScore),
+        readinessLabel,
+        mainRiskFactors,
+        keyActions,
       },
 
-      adjustments: reliabilityAdjustments,
-    },
+      decision: {
+        headline,
+        leaveHomeTime,
+        airportArrivalTime,
+        departureTime: departureDate,
+      },
 
-    confidence: {
-      level: confidenceLevel,
+      flight: flightData,
 
-      score: confidenceScore,
+      userContext,
 
-      strengths: confidenceStrengths,
+      airportIntelligence: airportIntel,
 
-      weaknesses: confidenceWeaknesses,
-    },
+      timingBreakdown: {
+        airportRecommendedBuffer:
+          airportOperational.recommendedAirportBuffer,
+        airportArrivalMinutesBeforeDeparture,
+        baseTravelMinutes,
+        transportBuffer,
+        leaveHomeMinutesBeforeDeparture,
+      },
 
-    readiness: {
-      score: readinessScore,
+      reliability: {
+        score: reliabilityScore,
+        confidence: getConfidenceLabel(confidenceLevel),
+        riskLevel: getRiskFromScore(100 - reliabilityScore),
+        explanation: {
+          summary:
+            "Pontuação calculada com base no novo Airport Intelligence Engine, transporte e contexto do utilizador.",
+        },
+        adjustments: reliabilityAdjustments,
+      },
 
-      label: readinessLabel,
-    },
+      confidence: {
+        level: confidenceLevel,
+        score: confidenceScore,
+        strengths: confidenceStrengths,
+        weaknesses: confidenceWeaknesses,
+      },
 
-    recommendations,
+      readiness: {
+        score: readinessScore,
+        label: readinessLabel,
+      },
 
-    alerts: operationalSignals,
+      recommendations,
 
-    communityReports,
+      alerts: airportIntel.intelligenceFlags,
 
-    timeline,
+      communityReports: [],
 
-    metadata: {
-      engine:
-        "Home2Flight Unified Decision Engine",
+      timeline,
 
-      version: "0.4.0",
-    },
-  });
+      metadata: {
+        engine: "Home2Flight Unified Decision Engine",
+        version: "0.5.0-airport-intelligence-v2",
+        airportEngine: "Airport Intelligence Engine v2",
+        generatedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("Home2Flight API error:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: error.stack,
+    });
+  }
 }
