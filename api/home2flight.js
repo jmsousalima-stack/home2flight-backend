@@ -387,7 +387,7 @@ export default async function handler(req, res) {
       reliability: {
         score: reliabilityScore,
         confidence: getConfidenceLabel(confidenceLevel),
-        riskLevel: getRiskFromScore(100 - reliabilityScore),
+        riskLevel: getRiskFromScore(100 - reliabilityScore + 15),
         explanation: {
           summary:
             "Pontuação calculada com base no novo Airport Intelligence Engine, transporte e contexto do utilizador.",
