@@ -7,10 +7,6 @@ function toBoolean(value, fallback = false) {
   return String(value).toLowerCase() === "true";
 }
 
-function addMinutes(date, minutes) {
-  return new Date(date.getTime() + minutes * 60000);
-}
-
 function subtractMinutes(date, minutes) {
   return new Date(date.getTime() - minutes * 60000);
 }
@@ -78,10 +74,6 @@ export default async function handler(req, res) {
     const hasKids = toBoolean(kids, true);
     const isCheckedIn = toBoolean(checkedIn, false);
 
-    // =========================
-    // TEMP FLIGHT DATA
-    // =========================
-
     const flightData = {
       number: flight,
       airline: "Air France",
@@ -104,10 +96,6 @@ export default async function handler(req, res) {
 
     const departureDate = new Date(flightData.departure);
 
-    // =========================
-    // USER CONTEXT
-    // =========================
-
     const userContext = {
       bags: hasBags,
       kids: hasKids,
@@ -115,10 +103,6 @@ export default async function handler(req, res) {
       flightType,
       transport,
     };
-
-    // =========================
-    // AIRPORT INTELLIGENCE ENGINE v2
-    // =========================
 
     const airportIntel = await getAirportOperationalIntelligence({
       airport,
@@ -134,18 +118,13 @@ export default async function handler(req, res) {
       },
     });
 
-    const airportOperational =
-      airportIntel.operationalIntelligence;
+    const airportOperational = airportIntel.operationalIntelligence;
 
     const airportArrivalMinutesBeforeDeparture =
       airportOperational.recommendedAirportBuffer +
       (flightType === "passport" ? 12 : 0) +
       (hasKids ? 10 : 0) +
       (!isCheckedIn ? 8 : 0);
-
-    // =========================
-    // TRANSPORT
-    // =========================
 
     const baseTravelMinutes = transport === "public" ? 40 : 25;
     const transportBuffer = transport === "public" ? 25 : 12;
@@ -165,20 +144,18 @@ export default async function handler(req, res) {
       airportArrivalMinutesBeforeDeparture
     );
 
-    // =========================
-    // RELIABILITY
-    // =========================
-
     let reliabilityScore = 100;
     const reliabilityAdjustments = [];
 
-    reliabilityScore -= Math.round(
+    const airportImpact = Math.round(
       airportOperational.airportRiskScore * 0.35
     );
 
+    reliabilityScore -= airportImpact;
+
     reliabilityAdjustments.push({
       factor: "airport_intelligence",
-      impact: -Math.round(airportOperational.airportRiskScore * 0.35),
+      impact: -airportImpact,
       reason: `Aeroporto avaliado com risco ${airportOperational.airportRisk}.`,
     });
 
@@ -220,12 +197,7 @@ export default async function handler(req, res) {
 
     reliabilityScore = Math.max(0, Math.min(100, reliabilityScore));
 
-    // =========================
-    // CONFIDENCE
-    // =========================
-
     const confidenceScore = airportOperational.confidenceScore;
-
     const confidenceLevel = airportOperational.confidenceLevel;
 
     const confidenceStrengths = [
@@ -233,16 +205,9 @@ export default async function handler(req, res) {
       "Decisão considera terminal, companhia, segurança, bagagem e perfil do passageiro.",
     ];
 
-    const confidenceWeaknesses = airportIntel.limitations;
+    const confidenceWeaknesses = airportIntel.limitations || [];
 
-    // =========================
-    // READINESS
-    // =========================
-
-    const readinessScore = Math.max(
-      0,
-      Math.min(100, reliabilityScore + 10)
-    );
+    const readinessScore = Math.max(0, Math.min(100, reliabilityScore + 10));
 
     let readinessLabel = "Estável";
 
@@ -251,10 +216,6 @@ export default async function handler(req, res) {
     } else if (readinessScore < 70) {
       readinessLabel = "Sensível";
     }
-
-    // =========================
-    // RECOMMENDATIONS
-    // =========================
 
     const recommendations = [];
 
@@ -282,196 +243,115 @@ export default async function handler(req, res) {
       });
     }
 
-    // =========================
-    // TIMELINE
-    // =========================
-
-const timeline = [
-  {
-    step: "prepare_documents",
-    title: "Preparar documentos e essenciais",
-    recommendedTime: subtractMinutes(leaveHomeTime, 90),
-    category: "preparation",
-    confidenceScore: 88,
-    trustLevel: "high",
-    status: "ready",
-    dynamicStatus: "stable",
-    source: "User checklist",
-    liveInsight:
-      "Preparação antecipada recomendada para reduzir fricção antes da saída.",
-    reasoning:
-      "Documentos, cartões, bagagem essencial e itens das crianças devem estar prontos antes da decisão de saída.",
-    operationalSignals: [],
-  },
-
-  {
-    step: "online_checkin",
-    title: "Confirmar check-in online",
-    recommendedTime: subtractMinutes(leaveHomeTime, 60),
-    category: "flight",
-    confidenceScore: 82,
-    trustLevel: isCheckedIn ? "high" : "medium",
-    status: isCheckedIn ? "ready" : "buffer",
-    dynamicStatus: isCheckedIn ? "stable" : "attention",
-    source: "Flight preparation model",
-    liveInsight: isCheckedIn
-      ? "Check-in online confirmado."
-      : "Check-in online ainda não confirmado. A timeline adiciona margem operacional.",
-    reasoning: isCheckedIn
-      ? "Passageiro já preparado para entrada direta na jornada aeroportuária."
-      : "A confirmação antecipada do check-in reduz dependência de balcões e filas no aeroporto.",
-    operationalSignals: isCheckedIn
-      ? []
-      : [
-          {
-            type: "checkin_pending",
-            label: "Check-in online por confirmar",
-            severity: "medium",
-          },
-        ],
-  },
-
-  {
-    step: "leave_home",
-    title: "Sair de casa",
-    recommendedTime: leaveHomeTime,
-    category: "transport",
-    confidenceScore: transport === "public" ? 70 : 82,
-    trustLevel: transport === "public" ? "medium" : "high",
-    status: transport === "public" ? "buffer" : "ready",
-    dynamicStatus:
-      transport === "public" ? "transport_monitoring" : "stable",
-    source: "Transport profile",
-    liveInsight:
-      transport === "public"
-        ? "Transporte público exige margem adicional por depender de horários e possíveis esperas."
-        : "Trajeto privado apresenta variabilidade reduzida.",
-    reasoning:
-      transport === "public"
-        ? `Saída calculada com ${baseTravelMinutes} min de trajeto e ${transportBuffer} min de buffer de transporte.`
-        : "Saída otimizada para trajeto privado com menor variabilidade operacional.",
-    operationalSignals:
-      transport === "public"
-        ? [
-            {
-              type: "public_transport",
-              label: "Dependência de transporte público",
-              severity: "medium",
-            },
-          ]
-        : [],
-    buffer:
-      transport === "public"
-        ? `+${transportBuffer} min`
-        : undefined,
-  },
-
-  {
-    step: "arrive_airport",
-    title: "Chegar ao aeroporto",
-    recommendedTime: airportArrivalTime,
-    category: "airport",
-    confidenceScore: airportOperational.confidenceScore,
-    trustLevel:
-      airportOperational.confidenceLevel === "low"
-        ? "low"
-        : "medium",
-    status:
-      airportOperational.airportRisk === "high"
-        ? "risk"
-        : "buffer",
-    dynamicStatus: "airport_monitoring",
-    source: airportOperational.sourceType,
-    liveInsight: airportIntel.reasoning[0],
-    reasoning: `Chegada recomendada com ${airportOperational.recommendedAirportBuffer} min de buffer aeroportuário, incluindo segurança, deslocação interna e variabilidade operacional.`,
-    operationalSignals: airportIntel.intelligenceFlags || [],
-    buffer: `+${airportOperational.recommendedAirportBuffer} min`,
-  },
-
-  {
-    step: "departure",
-    title: "Partida do voo",
-    recommendedTime: departureDate,
-    category: "flight",
-    confidenceScore: 80,
-    trustLevel: "medium",
-    status: "ready",
-    dynamicStatus: "flight_tracking",
-    source: "Flight schedule",
-    liveInsight:
-      "Hora de partida usada como âncora principal para calcular toda a timeline.",
-    reasoning:
-      "Todos os passos anteriores são calculados de trás para a frente a partir da hora prevista de partida.",
-    operationalSignals: [],
-  },
-];
-      : [],
-  },
-  {
-    step: "leave_home",
-    title: "Sair de casa",
-    recommendedTime: leaveHomeTime,
-    category: "transport",
-    status: transport === "public" ? "buffer" : "ready",
-    confidenceScore: transport === "public" ? 70 : 82,
-    trustLevel: transport === "public" ? "medium" : "high",
-    source: "Transport profile",
-    buffer: transport === "public" ? "+25 min" : "+12 min",
-    liveInsight:
-      transport === "public"
-        ? "Transporte público exige margem adicional por depender de horários e possíveis esperas."
-        : "Transporte privado com margem operacional aplicada ao trajeto.",
-    reasoning:
-      transport === "public"
-        ? `Saída calculada com ${baseTravelMinutes} min de trajeto e ${transportBuffer} min de buffer de transporte.`
-        : `Saída calculada com ${baseTravelMinutes} min de trajeto e ${transportBuffer} min de buffer.`,
-    intelligenceFlags:
-      transport === "public"
-        ? [
-            {
-              type: "public_transport_dependency",
-              label: "Dependência de transporte público",
-              severity: "medium",
-            },
-          ]
-        : [],
-  },
-  {
-    step: "arrive_airport",
-    title: "Chegar ao aeroporto",
-    recommendedTime: airportArrivalTime,
-    category: "airport",
-    status: airportOperational.airportRisk === "low" ? "ready" : "buffer",
-    confidenceScore: airportOperational.confidenceScore,
-    trustLevel: airportOperational.confidenceLevel,
-    source: airportOperational.sourceType,
-    buffer: `+${airportOperational.recommendedAirportBuffer} min`,
-    liveInsight:
-      airportIntel.reasoning?.[0] ||
-      "Chegada ao aeroporto calculada pelo Airport Intelligence Engine.",
-    reasoning: `Chegada recomendada com ${airportOperational.recommendedAirportBuffer} min de buffer aeroportuário, incluindo segurança, deslocação interna e variabilidade operacional.`,
-    operationalInsight: airportIntel.reasoning,
-    intelligenceFlags: airportIntel.intelligenceFlags,
-  },
-  {
-    step: "departure",
-    title: "Partida do voo",
-    recommendedTime: departureDate,
-    category: "flight",
-    status: "ready",
-    confidenceScore: 80,
-    trustLevel: "medium",
-    source: "Flight schedule",
-    liveInsight:
-      "Hora de partida usada como âncora principal para calcular toda a timeline.",
-    reasoning:
-      "Todos os passos anteriores são calculados de trás para a frente a partir da hora prevista de partida.",
-  },
-];
-
-    // =========================
-    // UI SUMMARY
-    // =========================
+    const timeline = [
+      {
+        step: "prepare_documents",
+        title: "Preparar documentos e essenciais",
+        recommendedTime: subtractMinutes(leaveHomeTime, 90),
+        category: "preparation",
+        confidenceScore: 88,
+        trustLevel: "high",
+        status: "ready",
+        dynamicStatus: "stable",
+        source: "User checklist",
+        liveInsight:
+          "Preparação antecipada recomendada para reduzir fricção antes da saída.",
+        reasoning:
+          "Documentos, cartões, bagagem essencial e itens das crianças devem estar prontos antes da decisão de saída.",
+        operationalSignals: [],
+      },
+      {
+        step: "online_checkin",
+        title: "Confirmar check-in online",
+        recommendedTime: subtractMinutes(leaveHomeTime, 60),
+        category: "flight",
+        confidenceScore: 82,
+        trustLevel: isCheckedIn ? "high" : "medium",
+        status: isCheckedIn ? "ready" : "buffer",
+        dynamicStatus: isCheckedIn ? "stable" : "attention",
+        source: "Flight preparation model",
+        liveInsight: isCheckedIn
+          ? "Check-in online confirmado."
+          : "Check-in online ainda não confirmado. A timeline adiciona margem operacional.",
+        reasoning: isCheckedIn
+          ? "Passageiro já preparado para entrada direta na jornada aeroportuária."
+          : "A confirmação antecipada do check-in reduz dependência de balcões e filas no aeroporto.",
+        operationalSignals: isCheckedIn
+          ? []
+          : [
+              {
+                type: "checkin_pending",
+                label: "Check-in online por confirmar",
+                severity: "medium",
+              },
+            ],
+      },
+      {
+        step: "leave_home",
+        title: "Sair de casa",
+        recommendedTime: leaveHomeTime,
+        category: "transport",
+        confidenceScore: transport === "public" ? 70 : 82,
+        trustLevel: transport === "public" ? "medium" : "high",
+        status: transport === "public" ? "buffer" : "ready",
+        dynamicStatus:
+          transport === "public" ? "transport_monitoring" : "stable",
+        source: "Transport profile",
+        liveInsight:
+          transport === "public"
+            ? "Transporte público exige margem adicional por depender de horários e possíveis esperas."
+            : "Trajeto privado apresenta variabilidade reduzida.",
+        reasoning:
+          transport === "public"
+            ? `Saída calculada com ${baseTravelMinutes} min de trajeto e ${transportBuffer} min de buffer de transporte.`
+            : "Saída otimizada para trajeto privado com menor variabilidade operacional.",
+        operationalSignals:
+          transport === "public"
+            ? [
+                {
+                  type: "public_transport",
+                  label: "Dependência de transporte público",
+                  severity: "medium",
+                },
+              ]
+            : [],
+        buffer: transport === "public" ? `+${transportBuffer} min` : undefined,
+      },
+      {
+        step: "arrive_airport",
+        title: "Chegar ao aeroporto",
+        recommendedTime: airportArrivalTime,
+        category: "airport",
+        confidenceScore: airportOperational.confidenceScore,
+        trustLevel:
+          airportOperational.confidenceLevel === "low" ? "low" : "medium",
+        status: airportOperational.airportRisk === "high" ? "risk" : "buffer",
+        dynamicStatus: "airport_monitoring",
+        source: airportOperational.sourceType,
+        liveInsight:
+          airportIntel.reasoning?.[0] ||
+          "Chegada ao aeroporto calculada pelo Airport Intelligence Engine.",
+        reasoning: `Chegada recomendada com ${airportOperational.recommendedAirportBuffer} min de buffer aeroportuário, incluindo segurança, deslocação interna e variabilidade operacional.`,
+        operationalSignals: airportIntel.intelligenceFlags || [],
+        buffer: `+${airportOperational.recommendedAirportBuffer} min`,
+      },
+      {
+        step: "departure",
+        title: "Partida do voo",
+        recommendedTime: departureDate,
+        category: "flight",
+        confidenceScore: 80,
+        trustLevel: "medium",
+        status: "ready",
+        dynamicStatus: "flight_tracking",
+        source: "Flight schedule",
+        liveInsight:
+          "Hora de partida usada como âncora principal para calcular toda a timeline.",
+        reasoning:
+          "Todos os passos anteriores são calculados de trás para a frente a partir da hora prevista de partida.",
+        operationalSignals: [],
+      },
+    ];
 
     const uiStatus = getUiStatus(reliabilityScore);
     const { headline, shortMessage } = getHeadline(uiStatus);
@@ -481,10 +361,6 @@ const timeline = [
       .map((item) => item.reason);
 
     const keyActions = recommendations.map((item) => item.title);
-
-    // =========================
-    // FINAL RESPONSE
-    // =========================
 
     return res.status(200).json({
       success: true,
@@ -514,8 +390,7 @@ const timeline = [
       airportIntelligence: airportIntel,
 
       timingBreakdown: {
-        airportRecommendedBuffer:
-          airportOperational.recommendedAirportBuffer,
+        airportRecommendedBuffer: airportOperational.recommendedAirportBuffer,
         airportArrivalMinutesBeforeDeparture,
         baseTravelMinutes,
         transportBuffer,
@@ -547,7 +422,7 @@ const timeline = [
 
       recommendations,
 
-      alerts: airportIntel.intelligenceFlags,
+      alerts: airportIntel.intelligenceFlags || [],
 
       communityReports: [],
 
@@ -555,7 +430,7 @@ const timeline = [
 
       metadata: {
         engine: "Home2Flight Unified Decision Engine",
-        version: "0.5.0-airport-intelligence-v2",
+        version: "0.6.0-dynamic-status",
         airportEngine: "Airport Intelligence Engine v2",
         generatedAt: new Date().toISOString(),
       },
