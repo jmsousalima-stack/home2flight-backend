@@ -38,6 +38,12 @@ function getSignalDescription(type) {
   return descriptions[type] || "Fator considerado no cálculo da margem operacional.";
 }
 
+function getSeverityColor(severity) {
+  if (severity === "high") return "#ef4444";
+  if (severity === "medium") return "#f59e0b";
+  return "#22c55e";
+}
+
 export default function OperationalIntelligenceCard({
   reliability,
   confidence,
@@ -167,11 +173,13 @@ export default function OperationalIntelligenceCard({
         />
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {flags.map((flag, index) => (
-          <SignalCard key={index} flag={flag} />
-        ))}
-      </div>
+      {flags.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {flags.map((flag, index) => (
+            <SignalCard key={`${flag.type || "signal"}-${index}`} flag={flag} />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -238,6 +246,8 @@ function InsightRow({ title, value }) {
 }
 
 function SignalCard({ flag }) {
+  const severityColor = getSeverityColor(flag?.severity);
+
   return (
     <div
       style={{
@@ -249,17 +259,49 @@ function SignalCard({ flag }) {
     >
       <div
         style={{
-          color: "#ffffff",
-          fontWeight: 800,
-          fontSize: 16,
-          marginBottom: 6,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 10,
+          gap: 12,
         }}
       >
-        {flag.label}
+        <div
+          style={{
+            color: "#ffffff",
+            fontWeight: 800,
+            fontSize: 16,
+            lineHeight: 1.2,
+          }}
+        >
+          {flag?.label || "Sinal operacional"}
+        </div>
+
+        <div
+          style={{
+            background: `${severityColor}20`,
+            color: severityColor,
+            padding: "6px 10px",
+            borderRadius: 999,
+            fontSize: 11,
+            fontWeight: 900,
+            textTransform: "uppercase",
+            letterSpacing: 1,
+            flexShrink: 0,
+          }}
+        >
+          {flag?.severity || "low"}
+        </div>
       </div>
 
-      <div style={{ color: "#9fb0d1", fontSize: 14, lineHeight: 1.35 }}>
-        {getSignalDescription(flag.type)}
+      <div
+        style={{
+          color: "#9fb0d1",
+          fontSize: 14,
+          lineHeight: 1.45,
+        }}
+      >
+        {getSignalDescription(flag?.type)}
       </div>
     </div>
   );
