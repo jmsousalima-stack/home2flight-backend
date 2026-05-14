@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import DepartureDecisionCard from "../components/DepartureDecisionCard";
 import LiveOperationalMonitor from "../components/LiveOperationalMonitor";
-import ReliabilityCard from "../components/ReliabilityCard";
+import OperationalIntelligenceCard from "../components/OperationalIntelligenceCard";
 import TimelineCard from "../components/TimelineCard";
 
 const ENGINE_URL =
@@ -28,9 +28,7 @@ export default function Home() {
         const json = await response.json();
 
         if (!json?.success) {
-          throw new Error(
-            json?.error || "Home2Flight engine failed."
-          );
+          throw new Error(json?.error || "Home2Flight engine failed.");
         }
 
         setTimelineData(json);
@@ -131,7 +129,11 @@ export default function Home() {
 
         <DepartureDecisionCard timelineData={timelineData} />
 
-        <ReliabilityCard data={timelineData} />
+        <OperationalIntelligenceCard
+          reliability={timelineData?.reliability}
+          confidence={timelineData?.confidence}
+          airportIntelligence={timelineData?.airportIntelligence}
+        />
 
         <TimelineCard timeline={timelineData?.timeline || []} />
       </div>
