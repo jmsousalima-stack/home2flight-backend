@@ -6,16 +6,36 @@ function getConfidenceColor(score) {
   return "#ef4444";
 }
 
-function getConfidenceLabel(score) {
-  if (score >= 75) return "High operational trust";
-  if (score >= 55) return "Moderate operational trust";
-  return "Reduced operational trust";
+function getReliabilityLabel(score) {
+  if (score >= 75) return "Plano confortável";
+  if (score >= 55) return "Plano sensível";
+  return "Plano frágil";
 }
 
-function getRiskLabel(score) {
-  if (score >= 75) return "Stable";
-  if (score >= 55) return "Sensitive";
-  return "Fragile";
+function getConfidenceLabel(score) {
+  if (score >= 75) return "Confiança elevada";
+  if (score >= 55) return "Confiança moderada";
+  return "Confiança reduzida";
+}
+
+function getAirportRiskLabel(risk) {
+  if (risk === "high") return "Atenção elevada";
+  if (risk === "medium") return "Atenção moderada";
+  if (risk === "low") return "Operação estável";
+  return "Por avaliar";
+}
+
+function getSignalDescription(type) {
+  const descriptions = {
+    terminal_pressure:
+      "O terminal pode ter alguma pressão operacional. Mantemos margem extra.",
+    bag_drop_required:
+      "Como há bagagem de porão, existe maior variabilidade no aeroporto.",
+    security_variability:
+      "A segurança pode variar. A timeline já inclui margem adicional.",
+  };
+
+  return descriptions[type] || "Fator considerado no cálculo da margem operacional.";
 }
 
 export default function OperationalIntelligenceCard({
@@ -25,22 +45,19 @@ export default function OperationalIntelligenceCard({
 }) {
   const reliabilityScore = reliability?.score || 0;
   const confidenceScore = confidence?.score || 0;
-
   const confidenceColor = getConfidenceColor(confidenceScore);
 
-  const operational =
-    airportIntelligence?.operationalIntelligence || {};
-
-  const flags =
-    airportIntelligence?.intelligenceFlags || [];
+  const operational = airportIntelligence?.operationalIntelligence || {};
+  const flags = airportIntelligence?.intelligenceFlags || [];
 
   return (
     <section
       style={{
         padding: "32px 22px",
-        background:
-          "linear-gradient(180deg, #04112b 0%, #061537 100%)",
+        background: "linear-gradient(180deg, #04112b 0%, #061537 100%)",
         color: "#ffffff",
+        borderRadius: 34,
+        overflow: "hidden",
       }}
     >
       <div style={{ marginBottom: 28 }}>
@@ -54,7 +71,7 @@ export default function OperationalIntelligenceCard({
             marginBottom: 12,
           }}
         >
-          Operational Intelligence
+          Inteligência operacional
         </div>
 
         <h2
@@ -66,9 +83,9 @@ export default function OperationalIntelligenceCard({
             fontWeight: 950,
           }}
         >
-          Operational
+          Confiança
           <br />
-          confidence
+          da decisão
         </h2>
 
         <p
@@ -80,8 +97,8 @@ export default function OperationalIntelligenceCard({
             maxWidth: 420,
           }}
         >
-          Dynamic airport intelligence generated from operational,
-          transport and passenger context layers.
+          A Home2Flight avaliou aeroporto, transporte, bagagem e contexto do
+          passageiro para definir a margem de segurança.
         </p>
       </div>
 
@@ -94,14 +111,14 @@ export default function OperationalIntelligenceCard({
         }}
       >
         <MetricCard
-          title="Reliability"
+          title="Fiabilidade"
           value={reliabilityScore}
-          label={getRiskLabel(reliabilityScore)}
+          label={getReliabilityLabel(reliabilityScore)}
           color="#f8b133"
         />
 
         <MetricCard
-          title="Confidence"
+          title="Confiança"
           value={confidenceScore}
           label={getConfidenceLabel(confidenceScore)}
           color={confidenceColor}
@@ -126,37 +143,31 @@ export default function OperationalIntelligenceCard({
             marginBottom: 14,
           }}
         >
-          AIRPORT INTELLIGENCE
+          ANÁLISE DO AEROPORTO
         </div>
 
         <InsightRow
-          title="Airport risk"
-          value={operational.airportRisk || "Unknown"}
+          title="Estado operacional"
+          value={getAirportRiskLabel(operational.airportRisk)}
         />
 
         <InsightRow
-          title="Security estimation"
+          title="Segurança estimada"
           value={`${operational.estimatedSecurityMinutes || 0} min`}
         />
 
         <InsightRow
-          title="Internal walking"
+          title="Caminho até à porta"
           value={`${operational.estimatedWalkingMinutes || 0} min`}
         />
 
         <InsightRow
-          title="Recommended airport buffer"
+          title="Margem aplicada"
           value={`${operational.recommendedAirportBuffer || 0} min`}
         />
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-        }}
-      >
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {flags.map((flag, index) => (
           <SignalCard key={index} flag={flag} />
         ))}
@@ -196,15 +207,7 @@ function MetricCard({ title, value, label, color }) {
         {value}
       </div>
 
-      <div
-        style={{
-          color,
-          fontWeight: 900,
-          fontSize: 18,
-        }}
-      >
-        {label}
-      </div>
+      <div style={{ color, fontWeight: 900, fontSize: 18 }}>{label}</div>
     </div>
   );
 }
@@ -219,20 +222,13 @@ function InsightRow({ title, value }) {
         marginBottom: 14,
       }}
     >
-      <div
-        style={{
-          color: "#8ea0c8",
-          fontSize: 15,
-        }}
-      >
-        {title}
-      </div>
+      <div style={{ color: "#8ea0c8", fontSize: 15 }}>{title}</div>
 
       <div
         style={{
           color: "#ffffff",
           fontWeight: 800,
-          textTransform: "capitalize",
+          textAlign: "right",
         }}
       >
         {value}
@@ -262,13 +258,8 @@ function SignalCard({ flag }) {
         {flag.label}
       </div>
 
-      <div
-        style={{
-          color: "#9fb0d1",
-          fontSize: 14,
-        }}
-      >
-        Operational signal detected by intelligence layer.
+      <div style={{ color: "#9fb0d1", fontSize: 14, lineHeight: 1.35 }}>
+        {getSignalDescription(flag.type)}
       </div>
     </div>
   );
