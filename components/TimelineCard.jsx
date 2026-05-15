@@ -59,12 +59,6 @@ function getTrustLabel(trustLevel) {
   }
 }
 
-function getLiveLabel(item) {
-  if (item?.status === "risk") return "Atenção";
-  if (item?.status === "buffer") return "Margem";
-  return "Ativo";
-}
-
 function getPrimaryFlag(item) {
   const flags = item?.intelligenceFlags || item?.operationalSignals || [];
   return flags[0] || null;
@@ -113,7 +107,27 @@ function getStepMood(item) {
   return "Tudo alinhado";
 }
 
+function getOperationalState(index, currentIndex) {
+  if (index < currentIndex) return "completed";
+  if (index === currentIndex) return "current";
+  return "upcoming";
+}
+
+function getOperationalStateLabel(state) {
+  if (state === "completed") return "Concluído";
+  if (state === "current") return "Agora";
+  return "Próximo";
+}
+
+function getCurrentStepIndex(timeline) {
+  const leaveHomeIndex = timeline.findIndex((item) => item?.step === "leave_home");
+  if (leaveHomeIndex >= 0) return leaveHomeIndex;
+  return Math.min(2, Math.max(0, timeline.length - 1));
+}
+
 export default function TimelineCard({ timeline = [] }) {
+  const currentIndex = getCurrentStepIndex(timeline);
+
   return (
     <section
       style={{
@@ -160,63 +174,84 @@ export default function TimelineCard({ timeline = [] }) {
             maxWidth: 320,
           }}
         >
-          Plano operacional recalculado em tempo real.
+          Fluxo operacional vivo com prioridade nos passos críticos.
         </p>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {timeline.map((item, index) => (
-          <TimelineStep
-            key={getItemKey(item, index)}
-            item={item}
-            index={index}
-          />
-        ))}
+      <div style={{ position: "relative" }}>
+        <div
+          style={{
+            position: "absolute",
+            top: 24,
+            bottom: 24,
+            left: 28,
+            width: 2,
+            background:
+              "linear-gradient(180deg, #22c55e 0%, #c99700 48%, #22a8e8 100%)",
+            opacity: 0.22,
+            borderRadius: 999,
+          }}
+        />
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {timeline.map((item, index) => (
+            <TimelineStep
+              key={getItemKey(item, index)}
+              item={item}
+              index={index}
+              operationalState={getOperationalState(index, currentIndex)}
+            />
+          ))}
+        </div>
       </div>
     </section>
   );
 }
 
-function TimelineStep({ item, index }) {
+function TimelineStep({ item, index, operationalState }) {
   const status = item?.status || "ready";
-
   const accent = getAccentColor(status);
   const borderColor = getBorderColor(status);
   const softBg = getSoftBackground(status);
 
   const isLive = status === "risk" || status === "buffer";
-
   const isCritical =
-    item?.step === "leave_home" ||
-    item?.step === "arrive_airport";
+    item?.step === "leave_home" || item?.step === "arrive_airport";
+  const isCurrent = operationalState === "current";
+  const isCompleted = operationalState === "completed";
 
   const [expanded, setExpanded] = useState(isCritical);
 
   const confidenceScore = item?.confidenceScore ?? 0;
-
   const primaryFlag = getPrimaryFlag(item);
-
   const time = formatTimelineTime(item);
+
+  const stateColor = isCompleted ? "#22c55e" : isCurrent ? accent : "#94a3b8";
 
   return (
     <article
       onClick={() => setExpanded(!expanded)}
       style={{
         background: "#ffffff",
-        border: isCritical
+        border: isCurrent
+          ? `2.5px solid ${accent}`
+          : isCritical
           ? `2px solid ${accent}`
           : `1.5px solid ${borderColor}`,
         borderRadius: 28,
         padding: expanded ? 18 : 14,
-        boxShadow: isCritical
+        boxShadow: isCurrent
+          ? `0 22px 56px ${accent}28`
+          : isCritical
           ? `0 18px 44px ${accent}22`
           : isLive
-            ? `0 12px 34px ${accent}18`
-            : "0 10px 28px rgba(15,23,42,0.05)",
+          ? `0 12px 34px ${accent}18`
+          : "0 10px 28px rgba(15,23,42,0.05)",
         position: "relative",
         overflow: "hidden",
         transition: "all 0.22s ease",
         cursor: "pointer",
+        opacity: isCompleted ? 0.82 : 1,
       }}
     >
       <div
@@ -225,11 +260,40 @@ function TimelineStep({ item, index }) {
           top: 0,
           left: 0,
           right: 0,
-          height: isLive ? 5 : 3,
-          background: accent,
-          opacity: isLive ? 0.9 : 0.3,
+          height: isCurrent ? 6 : isLive ? 5 : 3,
+          background: isCompleted ? "#22c55e" : accent,
+          opacity: isCurrent || isLive ? 0.95 : 0.3,
         }}
       />
+
+      <div
+        style={{
+          position: "absolute",
+          left: 15,
+          top: expanded ? 42 : 32,
+          width: 26,
+          height: 26,
+          borderRadius: 999,
+          background: "#ffffff",
+          border: `3px solid ${stateColor}`,
+          boxShadow: isCurrent ? `0 0 0 8px ${accent}16` : "none",
+          zIndex: 3,
+        }}
+      >
+        {isCompleted && (
+          <div
+            style={{
+              color: "#22c55e",
+              fontSize: 15,
+              fontWeight: 950,
+              textAlign: "center",
+              lineHeight: "20px",
+            }}
+          >
+            ✓
+          </div>
+        )}
+      </div>
 
       <div
         style={{
@@ -237,6 +301,7 @@ function TimelineStep({ item, index }) {
           justifyContent: "space-between",
           alignItems: "center",
           marginBottom: expanded ? 14 : 0,
+          paddingLeft: 34,
         }}
       >
         <div
@@ -308,6 +373,11 @@ function TimelineStep({ item, index }) {
                 STEP {index + 1}
               </div>
 
+              <StatePill
+                text={getOperationalStateLabel(operationalState)}
+                color={stateColor}
+              />
+
               <MoodPill
                 text={getStepMood(item)}
                 accent={accent}
@@ -341,8 +411,7 @@ function TimelineStep({ item, index }) {
         <div
           style={{
             marginTop: 16,
-            paddingLeft: 90,
-            animation: "fadeIn 0.2s ease",
+            paddingLeft: 124,
           }}
         >
           <div
@@ -418,6 +487,24 @@ function TimelineStep({ item, index }) {
         </div>
       )}
     </article>
+  );
+}
+
+function StatePill({ text, color }) {
+  return (
+    <span
+      style={{
+        background: `${color}18`,
+        color,
+        borderRadius: 999,
+        padding: "4px 8px",
+        fontSize: 10,
+        fontWeight: 950,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {text}
+    </span>
   );
 }
 
