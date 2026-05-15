@@ -47,22 +47,19 @@ function getStatusLabel(status) {
 function getTrustLabel(trustLevel) {
   switch (trustLevel) {
     case "high":
-      return "Confiança elevada";
+      return "Elevada";
     case "medium":
-      return "Confiança moderada";
+      return "Moderada";
     case "low":
-      return "Confiança reduzida";
+      return "Reduzida";
     default:
-      return "Confiança em análise";
+      return "Pendente";
   }
 }
 
 function getLiveLabel(item) {
-  if (item?.status === "risk") return "Atenção ativa";
-  if (item?.status === "buffer") return "Margem ativa";
-  if (item?.dynamicStatus === "flight_tracking") return "Voo monitorizado";
-  if (item?.dynamicStatus === "airport_monitoring") return "Aeroporto monitorizado";
-  if (item?.dynamicStatus === "transport_monitoring") return "Transporte monitorizado";
+  if (item?.status === "risk") return "Atenção";
+  if (item?.status === "buffer") return "Margem";
   return "Ativo";
 }
 
@@ -122,7 +119,7 @@ export default function TimelineCard({ timeline = [] }) {
         borderTopLeftRadius: 42,
         borderTopRightRadius: 42,
         marginTop: 34,
-        padding: "34px 18px 120px",
+        padding: "34px 16px 120px",
         position: "relative",
         overflow: "hidden",
         boxSizing: "border-box",
@@ -131,18 +128,12 @@ export default function TimelineCard({ timeline = [] }) {
       <style>{`
         @keyframes h2fPulse {
           0% { transform: scale(1); opacity: 0.75; }
-          50% { transform: scale(1.85); opacity: 0.14; }
+          50% { transform: scale(1.75); opacity: 0.12; }
           100% { transform: scale(1); opacity: 0.75; }
-        }
-
-        @keyframes h2fGlow {
-          0% { box-shadow: 0 18px 38px rgba(15,23,42,0.08); }
-          50% { box-shadow: 0 22px 52px rgba(15,23,42,0.15); }
-          100% { box-shadow: 0 18px 38px rgba(15,23,42,0.08); }
         }
       `}</style>
 
-      <div style={{ marginBottom: 28 }}>
+      <div style={{ marginBottom: 24 }}>
         <h2
           style={{
             fontSize: "clamp(38px, 10vw, 54px)",
@@ -150,7 +141,7 @@ export default function TimelineCard({ timeline = [] }) {
             letterSpacing: "-2.4px",
             fontWeight: 950,
             color: "#03133d",
-            margin: "0 0 16px",
+            margin: "0 0 14px",
           }}
         >
           Operational
@@ -160,19 +151,18 @@ export default function TimelineCard({ timeline = [] }) {
 
         <p
           style={{
-            fontSize: 17,
+            fontSize: 16,
             lineHeight: 1.42,
             color: "#707b97",
             margin: 0,
-            maxWidth: 340,
+            maxWidth: 320,
           }}
         >
-          Plano dinâmico recalculado por voo, transporte, aeroporto e confiança
-          operacional.
+          Plano operacional recalculado em tempo real.
         </p>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {timeline.map((item, index) => {
           const status = item?.status || "ready";
           const accent = getAccentColor(status);
@@ -188,35 +178,25 @@ export default function TimelineCard({ timeline = [] }) {
               key={getItemKey(item, index)}
               style={{
                 background: "#ffffff",
-                border: `2px solid ${borderColor}`,
-                borderRadius: 30,
-                padding: 18,
+                border: `1.5px solid ${borderColor}`,
+                borderRadius: 28,
+                padding: 16,
                 boxShadow: isLive
-                  ? `0 20px 52px ${accent}24`
-                  : "0 14px 36px rgba(15,23,42,0.06)",
+                  ? `0 12px 34px ${accent}18`
+                  : "0 10px 28px rgba(15,23,42,0.05)",
                 position: "relative",
                 overflow: "hidden",
-                animation: isLive ? "h2fGlow 3.8s ease-in-out infinite" : "none",
               }}
             >
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  background: `radial-gradient(circle at 92% 0%, ${accent}28 0%, transparent 34%)`,
-                  pointerEvents: "none",
-                }}
-              />
-
               <div
                 style={{
                   position: "absolute",
                   top: 0,
                   left: 0,
                   right: 0,
-                  height: isLive ? 7 : 4,
+                  height: isLive ? 5 : 3,
                   background: accent,
-                  opacity: isLive ? 0.95 : 0.32,
+                  opacity: isLive ? 0.9 : 0.3,
                 }}
               />
 
@@ -224,42 +204,40 @@ export default function TimelineCard({ timeline = [] }) {
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
-                  gap: 12,
-                  marginBottom: 18,
                   alignItems: "center",
-                  position: "relative",
-                  zIndex: 1,
+                  marginBottom: 14,
                 }}
               >
                 <div
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
-                    gap: 10,
+                    gap: 8,
                     color: "#8b92ab",
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: 900,
-                    letterSpacing: 1.4,
+                    letterSpacing: 1.2,
                     textTransform: "uppercase",
                   }}
                 >
                   <span
                     style={{
-                      width: 26,
-                      height: 26,
+                      width: 24,
+                      height: 24,
                       borderRadius: 999,
                       background: softBg,
-                      border: `2px solid ${borderColor}`,
+                      border: `1.5px solid ${borderColor}`,
                       display: "inline-flex",
                       alignItems: "center",
                       justifyContent: "center",
                       color: accent,
-                      fontSize: 12,
+                      fontSize: 11,
                       fontWeight: 950,
                     }}
                   >
                     {index + 1}
                   </span>
+
                   Step {index + 1}
                 </div>
 
@@ -269,36 +247,32 @@ export default function TimelineCard({ timeline = [] }) {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "92px 1fr",
-                  gap: 16,
+                  gridTemplateColumns: "76px 1fr",
+                  gap: 14,
                   alignItems: "start",
-                  position: "relative",
-                  zIndex: 1,
                 }}
               >
                 <div
                   style={{
-                    width: 92,
-                    minHeight: 92,
-                    borderRadius: 24,
+                    width: 76,
+                    minHeight: 76,
+                    borderRadius: 20,
                     background: softBg,
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
                     justifyContent: "center",
-                    flexShrink: 0,
-                    padding: "10px 6px",
+                    padding: 8,
                     boxSizing: "border-box",
                   }}
                 >
                   <div
                     style={{
-                      fontSize: 24,
+                      fontSize: 21,
                       fontWeight: 950,
                       color: accent,
                       lineHeight: 1,
-                      marginBottom: 9,
-                      textAlign: "center",
+                      marginBottom: 7,
                     }}
                   >
                     {time}
@@ -306,8 +280,8 @@ export default function TimelineCard({ timeline = [] }) {
 
                   <div
                     style={{
-                      fontSize: 12,
-                      letterSpacing: 1.5,
+                      fontSize: 10,
+                      letterSpacing: 1.2,
                       fontWeight: 950,
                       color: accent,
                     }}
@@ -317,31 +291,45 @@ export default function TimelineCard({ timeline = [] }) {
                 </div>
 
                 <div style={{ minWidth: 0 }}>
-                  <h3
+                  <div
                     style={{
-                      fontSize: "clamp(24px, 7vw, 30px)",
-                      lineHeight: 1,
-                      letterSpacing: "-1px",
-                      color: "#04133d",
-                      fontWeight: 950,
-                      margin: "0 0 8px",
+                      display: "flex",
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                      gap: 8,
+                      marginBottom: 8,
                     }}
                   >
-                    {item?.title}
-                  </h3>
+                    <h3
+                      style={{
+                        fontSize: "clamp(22px, 6vw, 28px)",
+                        lineHeight: 1,
+                        letterSpacing: "-1px",
+                        color: "#04133d",
+                        fontWeight: 950,
+                        margin: 0,
+                      }}
+                    >
+                      {item?.title}
+                    </h3>
+
+                    <MoodPill
+                      text={getStepMood(item)}
+                      accent={accent}
+                      softBg={softBg}
+                    />
+                  </div>
 
                   <div
                     style={{
-                      fontSize: 16,
+                      fontSize: 14,
                       fontWeight: 800,
                       color: "#8b92ab",
-                      marginBottom: 14,
+                      marginBottom: 10,
                     }}
                   >
                     {item?.category}
                   </div>
-
-                  <MoodPill text={getStepMood(item)} accent={accent} softBg={softBg} />
 
                   <ExecutiveInsight
                     item={item}
@@ -353,12 +341,13 @@ export default function TimelineCard({ timeline = [] }) {
                     style={{
                       display: "flex",
                       flexWrap: "wrap",
-                      gap: 7,
-                      marginBottom: primaryFlag ? 12 : 14,
+                      gap: 6,
+                      marginBottom: primaryFlag ? 10 : 12,
                     }}
                   >
-                    <Tag text={`${confidenceScore}% confiança`} accent={accent} />
+                    <Tag text={`${confidenceScore}%`} accent={accent} />
                     <Tag text={getTrustLabel(item?.trustLevel)} />
+
                     {item?.buffer && item.buffer !== "Pending" && (
                       <Tag text={item.buffer} green />
                     )}
@@ -369,10 +358,10 @@ export default function TimelineCard({ timeline = [] }) {
                   {item?.reasoning && (
                     <p
                       style={{
-                        fontSize: 15,
-                        lineHeight: 1.45,
+                        fontSize: 14,
+                        lineHeight: 1.4,
                         color: "#667085",
-                        margin: "0 0 14px",
+                        margin: "0 0 10px",
                       }}
                     >
                       {item.reasoning}
@@ -383,23 +372,22 @@ export default function TimelineCard({ timeline = [] }) {
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: 8,
+                      gap: 7,
                       color: "#98a2b3",
-                      fontSize: 12,
+                      fontSize: 11,
                       fontWeight: 800,
                     }}
                   >
                     <span
                       style={{
-                        width: 8,
-                        height: 8,
+                        width: 7,
+                        height: 7,
                         borderRadius: 999,
                         background: "#22c55e",
-                        boxShadow: "0 0 12px rgba(34,197,94,0.8)",
                         flexShrink: 0,
                       }}
                     />
-                    Atualizado há {item?.lastUpdatedMinutesAgo ?? 2} min
+                    Atualizado agora
                   </div>
                 </div>
               </div>
@@ -420,10 +408,10 @@ function MoodPill({ text, accent, softBg }) {
         background: softBg,
         color: accent,
         borderRadius: 999,
-        padding: "7px 11px",
-        fontSize: 12,
+        padding: "5px 9px",
+        fontSize: 11,
         fontWeight: 900,
-        marginBottom: 12,
+        whiteSpace: "nowrap",
       }}
     >
       {text}
@@ -441,11 +429,11 @@ function ExecutiveInsight({ item, accent, confidenceScore }) {
   return (
     <div
       style={{
-        background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
-        border: "1px solid #e9eef6",
-        borderRadius: 20,
-        padding: 14,
-        marginBottom: 13,
+        background: "#f8fafc",
+        border: "1px solid #edf2f7",
+        borderRadius: 18,
+        padding: 12,
+        marginBottom: 10,
       }}
     >
       <div
@@ -453,16 +441,16 @@ function ExecutiveInsight({ item, accent, confidenceScore }) {
           display: "flex",
           justifyContent: "space-between",
           gap: 12,
-          alignItems: "flex-start",
-          marginBottom: 10,
+          alignItems: "center",
+          marginBottom: 8,
         }}
       >
         <div
           style={{
             color: "#64748b",
-            fontSize: 11,
+            fontSize: 10,
             fontWeight: 950,
-            letterSpacing: 1.2,
+            letterSpacing: 1.1,
             textTransform: "uppercase",
           }}
         >
@@ -472,9 +460,8 @@ function ExecutiveInsight({ item, accent, confidenceScore }) {
         <div
           style={{
             color: accent,
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: 950,
-            whiteSpace: "nowrap",
           }}
         >
           {confidenceScore}%
@@ -484,8 +471,8 @@ function ExecutiveInsight({ item, accent, confidenceScore }) {
       <div
         style={{
           color: "#263244",
-          fontSize: 15,
-          lineHeight: 1.38,
+          fontSize: 14,
+          lineHeight: 1.35,
           fontWeight: 800,
         }}
       >
@@ -503,25 +490,24 @@ function LiveBadge({ item, accent, softBg }) {
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 8,
+        gap: 7,
         background: isLive ? softBg : "#eef2f7",
         color: isLive ? accent : "#64748b",
         borderRadius: 999,
-        padding: "7px 11px",
-        fontSize: 10,
+        padding: "6px 10px",
+        fontSize: 9,
         fontWeight: 950,
-        letterSpacing: 1.1,
+        letterSpacing: 1,
         whiteSpace: "nowrap",
         textTransform: "uppercase",
       }}
     >
       <span
         style={{
-          width: 8,
-          height: 8,
+          width: 7,
+          height: 7,
           borderRadius: 999,
           background: isLive ? accent : "#22c55e",
-          boxShadow: isLive ? `0 0 12px ${accent}` : "none",
           position: "relative",
           display: "inline-block",
         }}
@@ -538,6 +524,7 @@ function LiveBadge({ item, accent, softBg }) {
           />
         )}
       </span>
+
       {getLiveLabel(item)}
     </div>
   );
@@ -552,12 +539,12 @@ function SignalPill({ signal }) {
         display: "inline-flex",
         background: signalStyle.bg,
         color: signalStyle.color,
-        padding: "8px 11px",
+        padding: "7px 10px",
         borderRadius: 999,
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: 850,
         lineHeight: 1.2,
-        marginBottom: 14,
+        marginBottom: 10,
       }}
     >
       {signal?.label}
@@ -569,9 +556,9 @@ function Tag({ text, green = false, accent }) {
   return (
     <span
       style={{
-        padding: "8px 11px",
+        padding: "7px 10px",
         borderRadius: 999,
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: 850,
         background: green ? "#e7f8ef" : "#eef2f7",
         color: green ? "#1f9d61" : accent || "#49566f",
