@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 function getAccentColor(status) {
   switch (status) {
     case "risk":
@@ -163,247 +165,281 @@ export default function TimelineCard({ timeline = [] }) {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {timeline.map((item, index) => {
-          const status = item?.status || "ready";
-          const accent = getAccentColor(status);
-          const borderColor = getBorderColor(status);
-          const softBg = getSoftBackground(status);
-          const isLive = status === "risk" || status === "buffer";
-          const isCritical =
-            item?.step === "leave_home" || item?.step === "arrive_airport";
-          const confidenceScore = item?.confidenceScore ?? 0;
-          const primaryFlag = getPrimaryFlag(item);
-          const time = formatTimelineTime(item);
+        {timeline.map((item, index) => (
+          <TimelineStep
+            key={getItemKey(item, index)}
+            item={item}
+            index={index}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
 
-          return (
-            <article
-              key={getItemKey(item, index)}
+function TimelineStep({ item, index }) {
+  const status = item?.status || "ready";
+
+  const accent = getAccentColor(status);
+  const borderColor = getBorderColor(status);
+  const softBg = getSoftBackground(status);
+
+  const isLive = status === "risk" || status === "buffer";
+
+  const isCritical =
+    item?.step === "leave_home" ||
+    item?.step === "arrive_airport";
+
+  const [expanded, setExpanded] = useState(isCritical);
+
+  const confidenceScore = item?.confidenceScore ?? 0;
+
+  const primaryFlag = getPrimaryFlag(item);
+
+  const time = formatTimelineTime(item);
+
+  return (
+    <article
+      onClick={() => setExpanded(!expanded)}
+      style={{
+        background: "#ffffff",
+        border: isCritical
+          ? `2px solid ${accent}`
+          : `1.5px solid ${borderColor}`,
+        borderRadius: 28,
+        padding: expanded ? 18 : 14,
+        boxShadow: isCritical
+          ? `0 18px 44px ${accent}22`
+          : isLive
+            ? `0 12px 34px ${accent}18`
+            : "0 10px 28px rgba(15,23,42,0.05)",
+        position: "relative",
+        overflow: "hidden",
+        transition: "all 0.22s ease",
+        cursor: "pointer",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: isLive ? 5 : 3,
+          background: accent,
+          opacity: isLive ? 0.9 : 0.3,
+        }}
+      />
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: expanded ? 14 : 0,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            gap: 14,
+            alignItems: "center",
+            minWidth: 0,
+            flex: 1,
+          }}
+        >
+          <div
+            style={{
+              width: expanded ? 76 : 60,
+              height: expanded ? 76 : 60,
+              borderRadius: expanded ? 20 : 18,
+              background: softBg,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              transition: "all 0.2s ease",
+            }}
+          >
+            <div
               style={{
-                background: "#ffffff",
-                border: isCritical
-                  ? `2px solid ${accent}`
-                  : `1.5px solid ${borderColor}`,
-                borderRadius: 28,
-                padding: isCritical ? 20 : 16,
-                boxShadow: isCritical
-                  ? `0 18px 44px ${accent}22`
-                  : isLive
-                    ? `0 12px 34px ${accent}18`
-                    : "0 10px 28px rgba(15,23,42,0.05)",
-                position: "relative",
-                overflow: "hidden",
+                fontSize: expanded ? 21 : 18,
+                fontWeight: 950,
+                color: accent,
+                lineHeight: 1,
+                marginBottom: 5,
+              }}
+            >
+              {time}
+            </div>
+
+            <div
+              style={{
+                fontSize: 9,
+                letterSpacing: 1,
+                fontWeight: 950,
+                color: accent,
+              }}
+            >
+              {getStatusLabel(status)}
+            </div>
+          </div>
+
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 6,
+                flexWrap: "wrap",
               }}
             >
               <div
                 style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: isLive ? 5 : 3,
-                  background: accent,
-                  opacity: isLive ? 0.9 : 0.3,
+                  fontSize: 11,
+                  color: "#8b92ab",
+                  fontWeight: 900,
+                  letterSpacing: 1.2,
+                  textTransform: "uppercase",
                 }}
+              >
+                STEP {index + 1}
+              </div>
+
+              <MoodPill
+                text={getStepMood(item)}
+                accent={accent}
+                softBg={softBg}
               />
+            </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: 14,
-                }}
-              >
-                <div
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                    color: "#8b92ab",
-                    fontSize: 12,
-                    fontWeight: 900,
-                    letterSpacing: 1.2,
-                    textTransform: "uppercase",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 999,
-                      background: softBg,
-                      border: `1.5px solid ${borderColor}`,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: accent,
-                      fontSize: 11,
-                      fontWeight: 950,
-                    }}
-                  >
-                    {index + 1}
-                  </span>
+            <h3
+              style={{
+                fontSize: expanded
+                  ? isCritical
+                    ? "clamp(28px, 7vw, 34px)"
+                    : "clamp(22px, 6vw, 28px)"
+                  : "clamp(20px, 5vw, 24px)",
+                lineHeight: 0.95,
+                letterSpacing: "-1px",
+                color: "#04133d",
+                fontWeight: 950,
+                margin: 0,
+              }}
+            >
+              {item?.title}
+            </h3>
+          </div>
+        </div>
 
-                  Step {index + 1}
-                </div>
-
-                <LiveBadge item={item} accent={accent} softBg={softBg} />
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "76px 1fr",
-                  gap: 14,
-                  alignItems: "start",
-                }}
-              >
-                <div
-                  style={{
-                    width: 76,
-                    minHeight: 76,
-                    borderRadius: 20,
-                    background: softBg,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: 8,
-                    boxSizing: "border-box",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 21,
-                      fontWeight: 950,
-                      color: accent,
-                      lineHeight: 1,
-                      marginBottom: 7,
-                    }}
-                  >
-                    {time}
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 10,
-                      letterSpacing: 1.2,
-                      fontWeight: 950,
-                      color: accent,
-                    }}
-                  >
-                    {getStatusLabel(status)}
-                  </div>
-                </div>
-
-                <div style={{ minWidth: 0 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      alignItems: "center",
-                      gap: 8,
-                      marginBottom: 8,
-                    }}
-                  >
-                    <h3
-                      style={{
-                        fontSize: isCritical
-                          ? "clamp(28px, 7vw, 34px)"
-                          : "clamp(22px, 6vw, 28px)",
-                        lineHeight: 1,
-                        letterSpacing: "-1px",
-                        color: "#04133d",
-                        fontWeight: 950,
-                        margin: 0,
-                      }}
-                    >
-                      {item?.title}
-                    </h3>
-
-                    <MoodPill
-                      text={getStepMood(item)}
-                      accent={accent}
-                      softBg={softBg}
-                    />
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 800,
-                      color: "#8b92ab",
-                      marginBottom: 10,
-                    }}
-                  >
-                    {item?.category}
-                  </div>
-
-                  <ExecutiveInsight
-                    item={item}
-                    accent={accent}
-                    confidenceScore={confidenceScore}
-                  />
-
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 6,
-                      marginBottom: primaryFlag ? 10 : 12,
-                    }}
-                  >
-                    <Tag text={`${confidenceScore}%`} accent={accent} />
-                    <Tag text={getTrustLabel(item?.trustLevel)} />
-
-                    {item?.buffer && item.buffer !== "Pending" && (
-                      <Tag text={item.buffer} green />
-                    )}
-                  </div>
-
-                  {primaryFlag && <SignalPill signal={primaryFlag} />}
-
-                  {item?.reasoning && (
-                    <p
-                      style={{
-                        fontSize: 14,
-                        lineHeight: 1.4,
-                        color: "#667085",
-                        margin: "0 0 10px",
-                      }}
-                    >
-                      {item.reasoning}
-                    </p>
-                  )}
-
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 7,
-                      color: "#98a2b3",
-                      fontSize: 11,
-                      fontWeight: 800,
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: 7,
-                        height: 7,
-                        borderRadius: 999,
-                        background: "#22c55e",
-                        flexShrink: 0,
-                      }}
-                    />
-                    Atualizado agora
-                  </div>
-                </div>
-              </div>
-            </article>
-          );
-        })}
+        <ExpandIndicator expanded={expanded} />
       </div>
-    </section>
+
+      {expanded && (
+        <div
+          style={{
+            marginTop: 16,
+            paddingLeft: 90,
+            animation: "fadeIn 0.2s ease",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 800,
+              color: "#8b92ab",
+              marginBottom: 10,
+            }}
+          >
+            {item?.category}
+          </div>
+
+          <ExecutiveInsight
+            item={item}
+            accent={accent}
+            confidenceScore={confidenceScore}
+          />
+
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 6,
+              marginBottom: primaryFlag ? 10 : 12,
+            }}
+          >
+            <Tag text={`${confidenceScore}%`} accent={accent} />
+            <Tag text={getTrustLabel(item?.trustLevel)} />
+
+            {item?.buffer && item.buffer !== "Pending" && (
+              <Tag text={item.buffer} green />
+            )}
+          </div>
+
+          {primaryFlag && <SignalPill signal={primaryFlag} />}
+
+          {item?.reasoning && (
+            <p
+              style={{
+                fontSize: 14,
+                lineHeight: 1.4,
+                color: "#667085",
+                margin: "0 0 10px",
+              }}
+            >
+              {item.reasoning}
+            </p>
+          )}
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              color: "#98a2b3",
+              fontSize: 11,
+              fontWeight: 800,
+            }}
+          >
+            <span
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: 999,
+                background: "#22c55e",
+                flexShrink: 0,
+              }}
+            />
+
+            Atualizado agora
+          </div>
+        </div>
+      )}
+    </article>
+  );
+}
+
+function ExpandIndicator({ expanded }) {
+  return (
+    <div
+      style={{
+        width: 28,
+        height: 28,
+        borderRadius: 999,
+        background: "#eef2f7",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+        color: "#64748b",
+        fontSize: 16,
+        fontWeight: 900,
+      }}
+    >
+      {expanded ? "−" : "+"}
+    </div>
   );
 }
 
@@ -417,7 +453,7 @@ function MoodPill({ text, accent, softBg }) {
         color: accent,
         borderRadius: 999,
         padding: "5px 9px",
-        fontSize: 11,
+        fontSize: 10,
         fontWeight: 900,
         whiteSpace: "nowrap",
       }}
@@ -486,54 +522,6 @@ function ExecutiveInsight({ item, accent, confidenceScore }) {
       >
         {insight}
       </div>
-    </div>
-  );
-}
-
-function LiveBadge({ item, accent, softBg }) {
-  const isLive = item?.status === "risk" || item?.status === "buffer";
-
-  return (
-    <div
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 7,
-        background: isLive ? softBg : "#eef2f7",
-        color: isLive ? accent : "#64748b",
-        borderRadius: 999,
-        padding: "6px 10px",
-        fontSize: 9,
-        fontWeight: 950,
-        letterSpacing: 1,
-        whiteSpace: "nowrap",
-        textTransform: "uppercase",
-      }}
-    >
-      <span
-        style={{
-          width: 7,
-          height: 7,
-          borderRadius: 999,
-          background: isLive ? accent : "#22c55e",
-          position: "relative",
-          display: "inline-block",
-        }}
-      >
-        {isLive && (
-          <span
-            style={{
-              position: "absolute",
-              inset: 0,
-              borderRadius: 999,
-              background: accent,
-              animation: "h2fPulse 1.8s ease-in-out infinite",
-            }}
-          />
-        )}
-      </span>
-
-      {getLiveLabel(item)}
     </div>
   );
 }
