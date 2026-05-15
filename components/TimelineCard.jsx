@@ -169,6 +169,8 @@ export default function TimelineCard({ timeline = [] }) {
           const borderColor = getBorderColor(status);
           const softBg = getSoftBackground(status);
           const isLive = status === "risk" || status === "buffer";
+          const isCritical =
+            item?.step === "leave_home" || item?.step === "arrive_airport";
           const confidenceScore = item?.confidenceScore ?? 0;
           const primaryFlag = getPrimaryFlag(item);
           const time = formatTimelineTime(item);
@@ -178,12 +180,16 @@ export default function TimelineCard({ timeline = [] }) {
               key={getItemKey(item, index)}
               style={{
                 background: "#ffffff",
-                border: `1.5px solid ${borderColor}`,
+                border: isCritical
+                  ? `2px solid ${accent}`
+                  : `1.5px solid ${borderColor}`,
                 borderRadius: 28,
-                padding: 16,
-                boxShadow: isLive
-                  ? `0 12px 34px ${accent}18`
-                  : "0 10px 28px rgba(15,23,42,0.05)",
+                padding: isCritical ? 20 : 16,
+                boxShadow: isCritical
+                  ? `0 18px 44px ${accent}22`
+                  : isLive
+                    ? `0 12px 34px ${accent}18`
+                    : "0 10px 28px rgba(15,23,42,0.05)",
                 position: "relative",
                 overflow: "hidden",
               }}
@@ -302,7 +308,9 @@ export default function TimelineCard({ timeline = [] }) {
                   >
                     <h3
                       style={{
-                        fontSize: "clamp(22px, 6vw, 28px)",
+                        fontSize: isCritical
+                          ? "clamp(28px, 7vw, 34px)"
+                          : "clamp(22px, 6vw, 28px)",
                         lineHeight: 1,
                         letterSpacing: "-1px",
                         color: "#04133d",
