@@ -36,34 +36,34 @@ function getSoftBackground(status) {
 function getStatusLabel(status) {
   switch (status) {
     case "risk":
-      return "RISK";
+      return "RISCO";
     case "buffer":
       return "BUFFER";
     default:
-      return "READY";
+      return "PRONTO";
   }
 }
 
 function getTrustLabel(trustLevel) {
   switch (trustLevel) {
     case "high":
-      return "High trust";
+      return "Confiança elevada";
     case "medium":
-      return "Medium trust";
+      return "Confiança moderada";
     case "low":
-      return "Low trust";
+      return "Confiança reduzida";
     default:
-      return "Trust pending";
+      return "Confiança em análise";
   }
 }
 
 function getLiveLabel(item) {
-  if (item?.recalculationStatus === "risk_adjusted") return "Risk adjusted";
-  if (item?.recalculationStatus === "recalculated") return "Recalculated";
-  if (item?.recalculationStatus === "monitoring") return "Monitoring";
-  if (item?.status === "risk") return "Live risk";
-  if (item?.status === "buffer") return "Live buffer";
-  return "Active";
+  if (item?.status === "risk") return "Atenção ativa";
+  if (item?.status === "buffer") return "Margem ativa";
+  if (item?.dynamicStatus === "flight_tracking") return "Voo monitorizado";
+  if (item?.dynamicStatus === "airport_monitoring") return "Aeroporto monitorizado";
+  if (item?.dynamicStatus === "transport_monitoring") return "Transporte monitorizado";
+  return "Ativo";
 }
 
 function getPrimaryFlag(item) {
@@ -108,6 +108,12 @@ function getItemKey(item, index) {
   return item?.id || item?.step || `${item?.title || "timeline"}-${index}`;
 }
 
+function getStepMood(item) {
+  if (item?.status === "risk") return "Ação necessária";
+  if (item?.status === "buffer") return "Margem aplicada";
+  return "Tudo alinhado";
+}
+
 export default function TimelineCard({ timeline = [] }) {
   return (
     <section
@@ -131,7 +137,7 @@ export default function TimelineCard({ timeline = [] }) {
 
         @keyframes h2fGlow {
           0% { box-shadow: 0 18px 38px rgba(15,23,42,0.08); }
-          50% { box-shadow: 0 22px 48px rgba(15,23,42,0.13); }
+          50% { box-shadow: 0 22px 52px rgba(15,23,42,0.15); }
           100% { box-shadow: 0 18px 38px rgba(15,23,42,0.08); }
         }
       `}</style>
@@ -186,7 +192,7 @@ export default function TimelineCard({ timeline = [] }) {
                 borderRadius: 30,
                 padding: 18,
                 boxShadow: isLive
-                  ? `0 18px 44px ${accent}1f`
+                  ? `0 20px 52px ${accent}24`
                   : "0 14px 36px rgba(15,23,42,0.06)",
                 position: "relative",
                 overflow: "hidden",
@@ -196,24 +202,21 @@ export default function TimelineCard({ timeline = [] }) {
               <div
                 style={{
                   position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: isLive ? 6 : 4,
-                  background: accent,
-                  opacity: isLive ? 0.95 : 0.32,
+                  inset: 0,
+                  background: `radial-gradient(circle at 92% 0%, ${accent}28 0%, transparent 34%)`,
+                  pointerEvents: "none",
                 }}
               />
 
               <div
                 style={{
                   position: "absolute",
-                  top: -20,
-                  right: -20,
-                  width: 130,
-                  height: 130,
-                  background: `radial-gradient(circle, ${accent}20 0%, transparent 64%)`,
-                  pointerEvents: "none",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: isLive ? 7 : 4,
+                  background: accent,
+                  opacity: isLive ? 0.95 : 0.32,
                 }}
               />
 
@@ -224,6 +227,8 @@ export default function TimelineCard({ timeline = [] }) {
                   gap: 12,
                   marginBottom: 18,
                   alignItems: "center",
+                  position: "relative",
+                  zIndex: 1,
                 }}
               >
                 <div
@@ -267,6 +272,8 @@ export default function TimelineCard({ timeline = [] }) {
                   gridTemplateColumns: "92px 1fr",
                   gap: 16,
                   alignItems: "start",
+                  position: "relative",
+                  zIndex: 1,
                 }}
               >
                 <div
@@ -334,6 +341,8 @@ export default function TimelineCard({ timeline = [] }) {
                     {item?.category}
                   </div>
 
+                  <MoodPill text={getStepMood(item)} accent={accent} softBg={softBg} />
+
                   <ExecutiveInsight
                     item={item}
                     accent={accent}
@@ -348,7 +357,7 @@ export default function TimelineCard({ timeline = [] }) {
                       marginBottom: primaryFlag ? 12 : 14,
                     }}
                   >
-                    <Tag text={`${confidenceScore}% confidence`} accent={accent} />
+                    <Tag text={`${confidenceScore}% confiança`} accent={accent} />
                     <Tag text={getTrustLabel(item?.trustLevel)} />
                     {item?.buffer && item.buffer !== "Pending" && (
                       <Tag text={item.buffer} green />
@@ -390,7 +399,7 @@ export default function TimelineCard({ timeline = [] }) {
                         flexShrink: 0,
                       }}
                     />
-                    Updated {item?.lastUpdatedMinutesAgo ?? 2} min ago
+                    Atualizado há {item?.lastUpdatedMinutesAgo ?? 2} min
                   </div>
                 </div>
               </div>
@@ -402,12 +411,32 @@ export default function TimelineCard({ timeline = [] }) {
   );
 }
 
+function MoodPill({ text, accent, softBg }) {
+  return (
+    <div
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        background: softBg,
+        color: accent,
+        borderRadius: 999,
+        padding: "7px 11px",
+        fontSize: 12,
+        fontWeight: 900,
+        marginBottom: 12,
+      }}
+    >
+      {text}
+    </div>
+  );
+}
+
 function ExecutiveInsight({ item, accent, confidenceScore }) {
   const insight =
     item?.liveInsight ||
     item?.operationalInsight?.[0] ||
     item?.reasoning ||
-    "Timeline step generated by operational engine.";
+    "Etapa calculada pelo motor operacional.";
 
   return (
     <div
@@ -437,7 +466,7 @@ function ExecutiveInsight({ item, accent, confidenceScore }) {
             textTransform: "uppercase",
           }}
         >
-          Engine decision
+          Decisão do motor
         </div>
 
         <div
