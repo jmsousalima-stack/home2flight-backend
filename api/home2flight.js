@@ -1,6 +1,7 @@
 // /api/home2flight.js
 
 import { getAirportOperationalIntelligence } from "./engines/airport-intelligence-engine";
+import { getFlightStatusIntelligence } from "./engines/flight-status-engine";
 
 function toBoolean(value, fallback = false) {
   if (value === undefined || value === null) return fallback;
@@ -56,6 +57,60 @@ function getHeadline(uiStatus) {
   };
 }
 
+function getDepartureDateFromFlight(flightIntel, fallbackDate) {
+  const estimated = flightIntel?.flight?.departure?.estimated;
+  const scheduled = flightIntel?.flight?.departure?.scheduled;
+
+  const selected = estimated || scheduled || fallbackDate;
+
+  const date = new Date(selected);
+
+  if (Number.isNaN(date.getTime())) {
+    return new Date(fallbackDate);
+  }
+
+  return date;
+}
+
+function getFlightDataFromIntel(flightIntel, fallbackFlight, fallbackAirport, fallbackAirline) {
+  const liveFlight = flightIntel?.flight || {};
+
+  return {
+    number: liveFlight.number || fallbackFlight,
+    airline: liveFlight.airline?.name || fallbackAirline,
+    airlineCode: liveFlight.airline?.code || fallbackAirline,
+    status: liveFlight.status || "monitoring",
+    route: {
+      from: {
+        code: liveFlight.route?.from?.code || fallbackAirport,
+        name: liveFlight.route?.from?.name || "Origem",
+        country: null,
+      },
+      to: {
+        code: liveFlight.route?.to?.code || null,
+        name: liveFlight.route?.to?.name || "Destino",
+        country: null,
+      },
+    },
+    departure: {
+      scheduled: liveFlight.departure?.scheduled || null,
+      estimated: liveFlight.departure?.estimated || null,
+      actual: liveFlight.departure?.actual || null,
+      delayMinutes: liveFlight.departure?.delayMinutes ?? null,
+      terminal: liveFlight.departure?.terminal || null,
+      gate: liveFlight.departure?.gate || null,
+    },
+    arrival: {
+      scheduled: liveFlight.arrival?.scheduled || null,
+      estimated: liveFlight.arrival?.estimated || null,
+      actual: liveFlight.arrival?.actual || null,
+      delayMinutes: liveFlight.arrival?.delayMinutes ?? null,
+      terminal: liveFlight.arrival?.terminal || null,
+      gate: liveFlight.arrival?.gate || null,
+    },
+  };
+}
+
 export default async function handler(req, res) {
   try {
     const {
@@ -74,27 +129,32 @@ export default async function handler(req, res) {
     const hasKids = toBoolean(kids, true);
     const isCheckedIn = toBoolean(checkedIn, false);
 
-    const flightData = {
-      number: flight,
-      airline: "Air France",
-      airlineCode: airline,
-      route: {
-        from: {
-          code: airport,
-          name: "Lisboa Humberto Delgado",
-          country: "Portugal",
-        },
-        to: {
-          code: "CDG",
-          name: "Paris Charles de Gaulle",
-          country: "France",
-        },
-      },
-      departure: "2026-05-08T16:40:00+01:00",
-      status: "monitoring",
-    };
+    const flightIntel = await getFlightStatusIntelligence({
+      flightNumber: flight,
+    });
 
-    const departureDate = new Date(flightData.departure);
+    const fallbackDeparture = "2026-05-08T16:40:00+01:00";
+
+    const departureDate = getDepartureDateFromFlight(
+      flightIntel,
+      fallbackDeparture
+    );
+
+    const liveTerminal =
+      flightIntel?.flight?.departure?.terminal || terminal;
+
+    const liveAirport =
+      flightIntel?.flight?.route?.from?.code || airport;
+
+    const liveAirline =
+      flightIntel?.flight?.airline?.code || airline;
+
+    const flightData = getFlightDataFromIntel(
+      flightIntel,
+      flight,
+      liveAirport,
+      liveAirline
+    );
 
     const userContext = {
       bags: hasBags,
@@ -105,9 +165,9 @@ export default async function handler(req, res) {
     };
 
     const airportIntel = await getAirportOperationalIntelligence({
-      airport,
-      airline,
-      terminal,
+      airport: liveAirport,
+      airline: liveAirline,
+      terminal: liveTerminal,
       departureTime: departureDate.toISOString(),
       passengerProfile: {
         travellingWithKids: hasKids,
@@ -147,6 +207,20 @@ export default async function handler(req, res) {
     let reliabilityScore = 100;
     const reliabilityAdjustments = [];
 
+    const flightImpact = flightIntel?.success
+      ? Math.round((100 - flightIntel.reliability.score) * 0.25)
+      : 18;
+
+    reliabilityScore -= flightImpact;
+
+    reliabilityAdjustments.push({
+      factor: "flight_status",
+      impact: -flightImpact,
+      reason: flightIntel?.success
+        ? "Dados reais de voo integrados no cálculo."
+        : "Dados reais de voo indisponíveis. Aplicado fallback conservador.",
+    });
+
     const airportImpact = Math.round(
       airportOperational.airportRiskScore * 0.35
     );
@@ -162,7 +236,7 @@ export default async function handler(req, res) {
     if (!airportOperational.liveDataActive) {
       reliabilityScore -= 10;
       reliabilityAdjustments.push({
-        factor: "live_data",
+        factor: "live_airport_data",
         impact: -10,
         reason: "Ainda sem dados aeroportuários live oficiais.",
       });
@@ -197,15 +271,24 @@ export default async function handler(req, res) {
 
     reliabilityScore = Math.max(0, Math.min(100, reliabilityScore));
 
-    const confidenceScore = airportOperational.confidenceScore;
-    const confidenceLevel = airportOperational.confidenceLevel;
+    const confidenceScore = Math.round(
+      (airportOperational.confidenceScore * 0.55) +
+        ((flightIntel?.reliability?.confidenceScore || 35) * 0.45)
+    );
+
+    const confidenceLevel =
+      confidenceScore >= 80 ? "high" : confidenceScore >= 55 ? "medium" : "low";
 
     const confidenceStrengths = [
       "Motor aeroportuário estruturado por camadas.",
+      "Dados reais de voo integrados através de fornecedor externo.",
       "Decisão considera terminal, companhia, segurança, bagagem e perfil do passageiro.",
     ];
 
-    const confidenceWeaknesses = airportIntel.limitations || [];
+    const confidenceWeaknesses = [
+      ...(airportIntel.limitations || []),
+      ...(flightIntel?.reliability?.limitations || []),
+    ];
 
     const readinessScore = Math.max(0, Math.min(100, reliabilityScore + 10));
 
@@ -340,16 +423,19 @@ export default async function handler(req, res) {
         title: "Partida do voo",
         recommendedTime: departureDate,
         category: "flight",
-        confidenceScore: 80,
-        trustLevel: "medium",
+        confidenceScore: flightIntel?.reliability?.confidenceScore || 80,
+        trustLevel: flightIntel?.reliability?.trustLevel || "medium",
         status: "ready",
         dynamicStatus: "flight_tracking",
-        source: "Flight schedule",
+        source: flightIntel?.provider?.liveDataActive
+          ? "AviationStack live flight data"
+          : "Flight fallback model",
         liveInsight:
+          flightIntel?.intelligenceSummary?.summary ||
           "Hora de partida usada como âncora principal para calcular toda a timeline.",
         reasoning:
-          "Todos os passos anteriores são calculados de trás para a frente a partir da hora prevista de partida.",
-        operationalSignals: [],
+          "Todos os passos anteriores são calculados de trás para a frente a partir da hora prevista/estimada de partida.",
+        operationalSignals: flightIntel?.operationalSignals || [],
       },
     ];
 
@@ -384,6 +470,7 @@ export default async function handler(req, res) {
       },
 
       flight: flightData,
+      flightIntelligence: flightIntel,
 
       userContext,
 
@@ -403,7 +490,7 @@ export default async function handler(req, res) {
         riskLevel: getRiskFromScore(100 - reliabilityScore + 15),
         explanation: {
           summary:
-            "Pontuação calculada com base no novo Airport Intelligence Engine, transporte e contexto do utilizador.",
+            "Pontuação calculada com base em voo real, Airport Intelligence Engine, transporte e contexto do utilizador.",
         },
         adjustments: reliabilityAdjustments,
       },
@@ -422,7 +509,10 @@ export default async function handler(req, res) {
 
       recommendations,
 
-      alerts: airportIntel.intelligenceFlags || [],
+      alerts: [
+        ...(airportIntel.intelligenceFlags || []),
+        ...(flightIntel?.operationalSignals || []),
+      ],
 
       communityReports: [],
 
@@ -430,8 +520,9 @@ export default async function handler(req, res) {
 
       metadata: {
         engine: "Home2Flight Unified Decision Engine",
-        version: "0.6.0-dynamic-status",
+        version: "0.7.0-live-flight-integrated",
         airportEngine: "Airport Intelligence Engine v2",
+        flightEngine: flightIntel?.engine || "Flight Status Engine",
         generatedAt: new Date().toISOString(),
       },
     });
