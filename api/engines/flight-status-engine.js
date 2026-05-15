@@ -1,19 +1,19 @@
-export default async function handler(req, res) {
-  const flightNumber = String(req.query.flight || "AF1195").toUpperCase();
+// /api/engines/flight-status-engine.js
+
+export async function getFlightStatusIntelligence({ flightNumber = "AF1195" } = {}) {
+  const normalizedFlightNumber = String(flightNumber || "AF1195").toUpperCase();
   const apiKey = process.env.AVIATIONSTACK_API_KEY;
 
   if (!apiKey) {
-    return res.status(200).json(
-      buildFallbackResponse({
-        flightNumber,
-        reason: "AVIATIONSTACK_API_KEY is not configured.",
-      })
-    );
+    return buildFallbackResponse({
+      flightNumber: normalizedFlightNumber,
+      reason: "AVIATIONSTACK_API_KEY is not configured.",
+    });
   }
 
   try {
     const providerUrl = `http://api.aviationstack.com/v1/flights?access_key=${apiKey}&flight_iata=${encodeURIComponent(
-      flightNumber
+      normalizedFlightNumber
     )}`;
 
     const providerResponse = await fetch(providerUrl);
@@ -23,17 +23,15 @@ export default async function handler(req, res) {
     const flightData = providerData?.data?.[0];
 
     if (!flightData) {
-      return res.status(200).json(
-        buildFallbackResponse({
-          flightNumber,
-          reason: "No matching flight found from provider.",
-          providerStatus,
-          providerPreview: providerData,
-        })
-      );
+      return buildFallbackResponse({
+        flightNumber: normalizedFlightNumber,
+        reason: "No matching flight found from provider.",
+        providerStatus,
+        providerPreview: providerData,
+      });
     }
 
-    const normalized = normalizeFlightData(flightNumber, flightData);
+    const normalized = normalizeFlightData(normalizedFlightNumber, flightData);
     const reliability = calculateReliability(normalized);
     const operationalSignals = buildOperationalSignals(normalized);
     const intelligenceSummary = buildIntelligenceSummary(
@@ -41,11 +39,11 @@ export default async function handler(req, res) {
       operationalSignals
     );
 
-    return res.status(200).json({
+    return {
       success: true,
       generatedAt: new Date().toISOString(),
       engine: "Home2Flight Flight Status Engine",
-      version: "0.1.0",
+      version: "0.2.0-exportable",
       provider: {
         name: "AviationStack",
         reachable: true,
@@ -57,23 +55,31 @@ export default async function handler(req, res) {
       operationalSignals,
       intelligenceSummary,
       diagnostics: {
-        requestedFlight: flightNumber,
+        requestedFlight: normalizedFlightNumber,
         matchedFlight: normalized.number,
         hasEstimatedDeparture: Boolean(normalized.departure.estimated),
         hasActualDeparture: Boolean(normalized.departure.actual),
         hasTerminal: Boolean(normalized.departure.terminal),
         hasGate: Boolean(normalized.departure.gate),
       },
-    });
+    };
   } catch (error) {
-    return res.status(200).json(
-      buildFallbackResponse({
-        flightNumber,
-        reason: "Provider request failed.",
-        errorMessage: error.message,
-      })
-    );
+    return buildFallbackResponse({
+      flightNumber: normalizedFlightNumber,
+      reason: "Provider request failed.",
+      errorMessage: error.message,
+    });
   }
+}
+
+export default async function handler(req, res) {
+  const flightNumber = String(req.query.flight || "AF1195").toUpperCase();
+
+  const result = await getFlightStatusIntelligence({
+    flightNumber,
+  });
+
+  return res.status(200).json(result);
 }
 
 function normalizeFlightData(flightNumber, flightData) {
@@ -146,7 +152,9 @@ function calculateDelayMinutes(scheduled, estimated) {
   const scheduledTime = new Date(scheduled).getTime();
   const estimatedTime = new Date(estimated).getTime();
 
-  if (Number.isNaN(scheduledTime) || Number.isNaN(estimatedTime)) return null;
+  if (Number.isNaN(scheduledTime) || Number.isNaN(estimatedTime)) {
+    return null;
+  }
 
   return Math.max(0, Math.round((estimatedTime - scheduledTime) / 60000));
 }
@@ -271,7 +279,7 @@ function buildOperationalSignals(flight) {
   return signals;
 }
 
-function buildIntelligenceSummary(flight, signals) {
+function buildIntelligenceSummary(flight) {
   const from = flight.route?.from?.code || "origem";
   const to = flight.route?.to?.code || "destino";
   const route = `${from} → ${to}`;
@@ -333,7 +341,7 @@ function buildFallbackResponse({
     success: false,
     generatedAt: new Date().toISOString(),
     engine: "Home2Flight Flight Status Engine",
-    version: "0.1.0",
+    version: "0.2.0-exportable",
     provider: {
       name: "AviationStack",
       reachable: false,
