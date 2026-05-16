@@ -62,7 +62,6 @@ function getDepartureDateFromFlight(flightIntel, fallbackDate) {
   const scheduled = flightIntel?.flight?.departure?.scheduled;
 
   const selected = estimated || scheduled || fallbackDate;
-
   const date = new Date(selected);
 
   if (Number.isNaN(date.getTime())) {
@@ -72,7 +71,12 @@ function getDepartureDateFromFlight(flightIntel, fallbackDate) {
   return date;
 }
 
-function getFlightDataFromIntel(flightIntel, fallbackFlight, fallbackAirport, fallbackAirline) {
+function getFlightDataFromIntel(
+  flightIntel,
+  fallbackFlight,
+  fallbackAirport,
+  fallbackAirline
+) {
   const liveFlight = flightIntel?.flight || {};
 
   return {
@@ -111,6 +115,153 @@ function getFlightDataFromIntel(flightIntel, fallbackFlight, fallbackAirport, fa
   };
 }
 
+function isFlightFinished(status) {
+  return ["landed", "cancelled", "incident", "diverted"].includes(
+    String(status || "").toLowerCase()
+  );
+}
+
+function buildFinishedFlightResponse({
+  flightIntel,
+  flightData,
+  departureDate,
+  userContext,
+}) {
+  const isCancelled = String(flightData.status).toLowerCase() === "cancelled";
+
+  return {
+    success: true,
+
+    uiSummary: {
+      status: isCancelled ? "critical" : "good",
+      headline: isCancelled
+        ? "Voo cancelado — validação necessária"
+        : "Voo já concluído",
+      shortMessage: isCancelled
+        ? "A Home2Flight não deve gerar uma timeline normal para este voo."
+        : "Este voo já terminou. A timeline operacional pré-voo deixa de ser necessária.",
+      confidenceLabel: getConfidenceLabel(
+        flightIntel?.reliability?.trustLevel || "medium"
+      ),
+      reliabilityLabel: isCancelled ? "Frágil" : "Concluído",
+      readinessLabel: isCancelled ? "Crítica" : "Concluída",
+      mainRiskFactors: isCancelled
+        ? ["O voo surge como cancelado no fornecedor externo."]
+        : ["O voo já terminou segundo o fornecedor externo."],
+      keyActions: isCancelled
+        ? ["Confirma diretamente com a companhia aérea."]
+        : ["Usa um voo futuro para gerar uma timeline operacional."],
+    },
+
+    decision: {
+      headline: isCancelled
+        ? "Voo cancelado — validação necessária"
+        : "Voo já concluído",
+      leaveHomeTime: null,
+      airportArrivalTime: null,
+      departureTime: departureDate,
+    },
+
+    flight: flightData,
+    flightIntelligence: flightIntel,
+    userContext,
+
+    airportIntelligence: null,
+
+    timingBreakdown: {
+      airportRecommendedBuffer: 0,
+      airportArrivalMinutesBeforeDeparture: 0,
+      baseTravelMinutes: 0,
+      transportBuffer: 0,
+      leaveHomeMinutesBeforeDeparture: 0,
+    },
+
+    reliability: {
+      score: isCancelled ? 15 : 95,
+      confidence: getConfidenceLabel(
+        flightIntel?.reliability?.trustLevel || "medium"
+      ),
+      riskLevel: isCancelled ? "high" : "low",
+      explanation: {
+        summary: isCancelled
+          ? "O voo está cancelado. O motor bloqueou a timeline operacional automática."
+          : "O voo já terminou. O motor não gera recomendação pré-voo para voos concluídos.",
+      },
+      adjustments: [
+        {
+          factor: "flight_status",
+          impact: isCancelled ? -85 : 0,
+          reason: isCancelled
+            ? "Voo cancelado segundo o fornecedor externo."
+            : "Voo já concluído segundo o fornecedor externo.",
+        },
+      ],
+    },
+
+    confidence: {
+      level: flightIntel?.reliability?.trustLevel || "medium",
+      score: flightIntel?.reliability?.confidenceScore || 70,
+      strengths: ["Dados reais de voo integrados através de fornecedor externo."],
+      weaknesses: flightIntel?.reliability?.limitations || [],
+    },
+
+    readiness: {
+      score: isCancelled ? 0 : 100,
+      label: isCancelled ? "Crítica" : "Concluída",
+    },
+
+    recommendations: isCancelled
+      ? [
+          {
+            type: "airline_validation",
+            priority: "critical",
+            title: "Confirma o estado do voo com a companhia aérea",
+          },
+        ]
+      : [
+          {
+            type: "future_flight",
+            priority: "medium",
+            title: "Pesquisa um voo futuro para gerar nova timeline",
+          },
+        ],
+
+    alerts: flightIntel?.operationalSignals || [],
+
+    communityReports: [],
+
+    timeline: [
+      {
+        step: "flight_finished",
+        title: isCancelled ? "Voo cancelado" : "Voo concluído",
+        recommendedTime: departureDate,
+        category: "flight",
+        confidenceScore: flightIntel?.reliability?.confidenceScore || 70,
+        trustLevel: flightIntel?.reliability?.trustLevel || "medium",
+        status: isCancelled ? "risk" : "ready",
+        dynamicStatus: isCancelled ? "blocked" : "completed",
+        source: flightIntel?.provider?.liveDataActive
+          ? "AviationStack live flight data"
+          : "Flight fallback model",
+        liveInsight:
+          flightIntel?.intelligenceSummary?.summary ||
+          "O voo já não está em fase operacional pré-partida.",
+        reasoning: isCancelled
+          ? "A Home2Flight bloqueia a recomendação automática quando o voo surge cancelado."
+          : "A Home2Flight só deve gerar timeline operacional para voos futuros ou ainda em curso pré-partida.",
+        operationalSignals: flightIntel?.operationalSignals || [],
+      },
+    ],
+
+    metadata: {
+      engine: "Home2Flight Unified Decision Engine",
+      version: "0.8.0-flight-status-guard",
+      flightEngine: flightIntel?.engine || "Flight Status Engine",
+      generatedAt: new Date().toISOString(),
+    },
+  };
+}
+
 export default async function handler(req, res) {
   try {
     const {
@@ -140,14 +291,9 @@ export default async function handler(req, res) {
       fallbackDeparture
     );
 
-    const liveTerminal =
-      flightIntel?.flight?.departure?.terminal || terminal;
-
-    const liveAirport =
-      flightIntel?.flight?.route?.from?.code || airport;
-
-    const liveAirline =
-      flightIntel?.flight?.airline?.code || airline;
+    const liveTerminal = flightIntel?.flight?.departure?.terminal || terminal;
+    const liveAirport = flightIntel?.flight?.route?.from?.code || airport;
+    const liveAirline = flightIntel?.flight?.airline?.code || airline;
 
     const flightData = getFlightDataFromIntel(
       flightIntel,
@@ -163,6 +309,17 @@ export default async function handler(req, res) {
       flightType,
       transport,
     };
+
+    if (isFlightFinished(flightData.status)) {
+      return res.status(200).json(
+        buildFinishedFlightResponse({
+          flightIntel,
+          flightData,
+          departureDate,
+          userContext,
+        })
+      );
+    }
 
     const airportIntel = await getAirportOperationalIntelligence({
       airport: liveAirport,
@@ -221,9 +378,7 @@ export default async function handler(req, res) {
         : "Dados reais de voo indisponíveis. Aplicado fallback conservador.",
     });
 
-    const airportImpact = Math.round(
-      airportOperational.airportRiskScore * 0.35
-    );
+    const airportImpact = Math.round(airportOperational.airportRiskScore * 0.35);
 
     reliabilityScore -= airportImpact;
 
@@ -272,8 +427,8 @@ export default async function handler(req, res) {
     reliabilityScore = Math.max(0, Math.min(100, reliabilityScore));
 
     const confidenceScore = Math.round(
-      (airportOperational.confidenceScore * 0.55) +
-        ((flightIntel?.reliability?.confidenceScore || 35) * 0.45)
+      airportOperational.confidenceScore * 0.55 +
+        (flightIntel?.reliability?.confidenceScore || 35) * 0.45
     );
 
     const confidenceLevel =
@@ -520,7 +675,7 @@ export default async function handler(req, res) {
 
       metadata: {
         engine: "Home2Flight Unified Decision Engine",
-        version: "0.7.0-live-flight-integrated",
+        version: "0.8.0-flight-status-guard",
         airportEngine: "Airport Intelligence Engine v2",
         flightEngine: flightIntel?.engine || "Flight Status Engine",
         generatedAt: new Date().toISOString(),
