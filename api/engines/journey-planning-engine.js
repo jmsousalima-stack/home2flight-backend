@@ -532,10 +532,16 @@ export default async function handler(req, res) {
   const forceManualTime = toBoolean(req.query.forceManualTime, false);
   const flightType = String(req.query.flightType || "passport");
 
-  const fallbackDepartureTime =
-    req.query.departureTime ||
-    req.query.manualDepartureTime ||
-    "2026-05-20T16:40:00+01:00";
+const rawDepartureTime =
+  req.query.departureTime ||
+  req.query.manualDepartureTime ||
+  "2026-05-20T16:40:00+01:00";
+
+const fallbackDepartureTime =
+  String(rawDepartureTime).replace(
+    " ",
+    "+"
+  );
 
   const BASE_URL = buildBaseUrl(req);
 
