@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 
 import DepartureDecisionCard from "../components/DepartureDecisionCard";
 import OperationalIntelligenceCard from "../components/OperationalIntelligenceCard";
+import OperationalPulseCard from "../components/OperationalPulseCard";
 import ReliabilityCard from "../components/ReliabilityCard";
 import TimelineCard from "../components/TimelineCard";
 
 const ENGINE_URL =
-  "/api/home2flight?flight=KL1578&origin=Lisboa&airport=LIS&airline=KL&terminal=1&bags=true&kids=true&checkedIn=false&flightType=passport&transport=public";
+  "/api/home2flight?flight=TP1367&origin=Lisboa&airport=LIS&airline=TP&terminal=1&bags=true&kids=true&checkedIn=false&flightType=passport&transport=public";
 
 function isFinishedFlight(data) {
   const status = String(data?.flight?.status || "").toLowerCase();
@@ -26,7 +27,7 @@ export default function Home() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    async function loadHome2FlightEngine() {
+    async function loadEngine() {
       try {
         const response = await fetch(ENGINE_URL, {
           cache: "no-store",
@@ -39,7 +40,7 @@ export default function Home() {
         const json = await response.json();
 
         if (!json?.success) {
-          throw new Error(json?.error || "Home2Flight engine failed.");
+          throw new Error(json?.error || "Engine failed");
         }
 
         setTimelineData(json);
@@ -48,7 +49,7 @@ export default function Home() {
       }
     }
 
-    loadHome2FlightEngine();
+    loadEngine();
   }, []);
 
   if (error) {
@@ -67,27 +68,36 @@ export default function Home() {
       >
         <div
           style={{
-            maxWidth: 420,
-            background: "rgba(255,255,255,0.08)",
-            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.10)",
             borderRadius: 24,
             padding: 24,
+            maxWidth: 420,
           }}
         >
-          <h1 style={{ margin: "0 0 12px", fontSize: 28 }}>
-            Home2Flight Engine offline
+          <h1
+            style={{
+              marginTop: 0,
+              fontSize: 28,
+            }}
+          >
+            Home2Flight Engine Error
           </h1>
 
-          <p style={{ color: "#cbd5e1", lineHeight: 1.5, margin: 0 }}>
-            Não foi possível carregar o motor operacional neste momento.
+          <p
+            style={{
+              color: "#cbd5e1",
+              lineHeight: 1.5,
+            }}
+          >
+            Não foi possível carregar o motor operacional.
           </p>
 
           <p
             style={{
               color: "#94a3b8",
               fontSize: 13,
-              marginTop: 14,
-              wordBreak: "break-word",
+              marginTop: 16,
             }}
           >
             {error}
@@ -110,7 +120,7 @@ export default function Home() {
           fontFamily: "Arial, sans-serif",
         }}
       >
-        Loading Home2Flight Engine...
+        Loading Home2Flight Operational Engine...
       </main>
     );
   }
@@ -287,8 +297,8 @@ export default function Home() {
                 fontSize: 15,
               }}
             >
-              Este comportamento é correto: a app protege o utilizador de uma
-              recomendação falsa quando o voo já não está em janela pré-voo.
+              Este comportamento protege o utilizador de uma recomendação
+              operacional incorreta.
             </p>
           </div>
         </section>
@@ -300,8 +310,9 @@ export default function Home() {
     <main
       style={{
         minHeight: "100vh",
-        background: "#020617",
-        padding: "20px 14px 80px",
+        background:
+          "radial-gradient(circle at top, #0f172a 0%, #020617 52%)",
+        padding: "22px 14px 80px",
         fontFamily: "Arial, sans-serif",
       }}
     >
@@ -315,6 +326,8 @@ export default function Home() {
           gap: 20,
         }}
       >
+        <OperationalPulseCard data={timelineData} />
+
         <ReliabilityCard data={timelineData} />
 
         <OperationalIntelligenceCard
