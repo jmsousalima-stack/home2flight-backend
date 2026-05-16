@@ -34,16 +34,13 @@ export async function getFlightStatusIntelligence({ flightNumber = "AF1195" } = 
     const normalized = normalizeFlightData(normalizedFlightNumber, flightData);
     const reliability = calculateReliability(normalized);
     const operationalSignals = buildOperationalSignals(normalized);
-    const intelligenceSummary = buildIntelligenceSummary(
-      normalized,
-      operationalSignals
-    );
+    const intelligenceSummary = buildIntelligenceSummary(normalized);
 
     return {
       success: true,
       generatedAt: new Date().toISOString(),
       engine: "Home2Flight Flight Status Engine",
-      version: "0.2.0-exportable",
+      version: "0.3.0-derived-status",
       provider: {
         name: "AviationStack",
         reachable: true,
@@ -57,8 +54,12 @@ export async function getFlightStatusIntelligence({ flightNumber = "AF1195" } = 
       diagnostics: {
         requestedFlight: normalizedFlightNumber,
         matchedFlight: normalized.number,
+        providerStatusRaw: normalized.providerStatusRaw,
+        derivedStatus: normalized.status,
         hasEstimatedDeparture: Boolean(normalized.departure.estimated),
         hasActualDeparture: Boolean(normalized.departure.actual),
+        hasEstimatedArrival: Boolean(normalized.arrival.estimated),
+        hasActualArrival: Boolean(normalized.arrival.actual),
         hasTerminal: Boolean(normalized.departure.terminal),
         hasGate: Boolean(normalized.departure.gate),
       },
@@ -93,11 +94,21 @@ function normalizeFlightData(flightNumber, flightData) {
 
   const departureDelay =
     normalizeDelay(flightData?.departure?.delay) ??
-    calculateDelayMinutes(scheduledDeparture, estimatedDeparture);
+    calculateDelayMinutes(scheduledDeparture, actualDeparture || estimatedDeparture);
 
   const arrivalDelay =
     normalizeDelay(flightData?.arrival?.delay) ??
-    calculateDelayMinutes(scheduledArrival, estimatedArrival);
+    calculateDelayMinutes(scheduledArrival, actualArrival || estimatedArrival);
+
+  const providerStatusRaw = flightData?.flight_status || "unknown";
+
+  const derivedStatus = deriveOperationalStatus({
+    providerStatusRaw,
+    actualDeparture,
+    actualArrival,
+    estimatedArrival,
+    scheduledArrival,
+  });
 
   return {
     number: flightData?.flight?.iata || flightNumber,
@@ -106,7 +117,8 @@ function normalizeFlightData(flightNumber, flightData) {
       name: flightData?.airline?.name || null,
       code: flightData?.airline?.iata || null,
     },
-    status: flightData?.flight_status || "unknown",
+    status: derivedStatus,
+    providerStatusRaw,
     route: {
       from: {
         code: flightData?.departure?.iata || null,
@@ -135,9 +147,37 @@ function normalizeFlightData(flightNumber, flightData) {
       actual: actualArrival,
       delayMinutes: arrivalDelay,
       terminal: flightData?.arrival?.terminal || null,
-      gate: flightData?.arrival?.gate || null,
+      gate: null,
     },
   };
+}
+
+function deriveOperationalStatus({
+  providerStatusRaw,
+  actualDeparture,
+  actualArrival,
+  estimatedArrival,
+  scheduledArrival,
+}) {
+  const raw = String(providerStatusRaw || "").toLowerCase();
+
+  if (["cancelled", "canceled"].includes(raw)) return "cancelled";
+  if (["incident", "diverted"].includes(raw)) return raw;
+  if (actualArrival) return "landed";
+  if (actualDeparture) return "departed";
+
+  const arrivalCandidate = estimatedArrival || scheduledArrival;
+
+  if (arrivalCandidate) {
+    const arrivalTime = new Date(arrivalCandidate).getTime();
+    const now = Date.now();
+
+    if (!Number.isNaN(arrivalTime) && now > arrivalTime + 30 * 60000) {
+      return "likely_landed";
+    }
+  }
+
+  return raw || "unknown";
 }
 
 function normalizeDelay(value) {
@@ -146,17 +186,17 @@ function normalizeDelay(value) {
   return Math.max(0, value);
 }
 
-function calculateDelayMinutes(scheduled, estimated) {
-  if (!scheduled || !estimated) return null;
+function calculateDelayMinutes(scheduled, comparison) {
+  if (!scheduled || !comparison) return null;
 
   const scheduledTime = new Date(scheduled).getTime();
-  const estimatedTime = new Date(estimated).getTime();
+  const comparisonTime = new Date(comparison).getTime();
 
-  if (Number.isNaN(scheduledTime) || Number.isNaN(estimatedTime)) {
+  if (Number.isNaN(scheduledTime) || Number.isNaN(comparisonTime)) {
     return null;
   }
 
-  return Math.max(0, Math.round((estimatedTime - scheduledTime) / 60000));
+  return Math.max(0, Math.round((comparisonTime - scheduledTime) / 60000));
 }
 
 function calculateReliability(flight) {
@@ -165,6 +205,7 @@ function calculateReliability(flight) {
   if (flight.status === "unknown") score -= 24;
   if (flight.status === "cancelled") score -= 55;
   if (flight.status === "delayed") score -= 16;
+  if (flight.status === "likely_landed") score -= 8;
 
   if (!flight.departure.estimated) score -= 8;
   if (!flight.departure.terminal) score -= 6;
@@ -198,6 +239,12 @@ function getTrustLevel(score) {
 
 function getLimitations(flight) {
   const limitations = [];
+
+  if (flight.providerStatusRaw && flight.providerStatusRaw !== flight.status) {
+    limitations.push(
+      `Estado derivado pela Home2Flight: ${flight.status}. Estado bruto do fornecedor: ${flight.providerStatusRaw}.`
+    );
+  }
 
   if (!flight.departure.estimated) {
     limitations.push("Hora estimada de partida ainda não disponível.");
@@ -233,6 +280,22 @@ function buildOperationalSignals(flight) {
     });
   }
 
+  if (flight.status === "landed" || flight.status === "likely_landed") {
+    signals.push({
+      type: "flight_finished",
+      label: "Voo já concluído",
+      severity: "low",
+    });
+  }
+
+  if (flight.status === "departed") {
+    signals.push({
+      type: "flight_departed",
+      label: "Voo já partiu",
+      severity: "medium",
+    });
+  }
+
   if (flight.status === "delayed") {
     signals.push({
       type: "flight_delayed",
@@ -252,7 +315,7 @@ function buildOperationalSignals(flight) {
     });
   }
 
-  if (!flight.departure.gate) {
+  if (!flight.departure.gate && !["landed", "likely_landed"].includes(flight.status)) {
     signals.push({
       type: "gate_pending",
       label: "Gate ainda por confirmar",
@@ -290,6 +353,24 @@ function buildIntelligenceSummary(flight) {
       flightRisk: "high",
       recommendationImpact: "block_automatic_recommendation",
       summary: `${flight.number} (${route}) surge como cancelado. A Home2Flight deve bloquear recomendação automática e pedir validação imediata.`,
+    };
+  }
+
+  if (flight.status === "landed" || flight.status === "likely_landed") {
+    return {
+      operationalStatus: "finished",
+      flightRisk: "low",
+      recommendationImpact: "do_not_generate_preflight_timeline",
+      summary: `${flight.number} (${route}) já terminou. A Home2Flight não deve gerar timeline pré-voo normal para este voo.`,
+    };
+  }
+
+  if (flight.status === "departed") {
+    return {
+      operationalStatus: "departed",
+      flightRisk: "medium",
+      recommendationImpact: "preflight_window_closed",
+      summary: `${flight.number} (${route}) já partiu. A janela operacional pré-voo terminou.`,
     };
   }
 
@@ -341,7 +422,7 @@ function buildFallbackResponse({
     success: false,
     generatedAt: new Date().toISOString(),
     engine: "Home2Flight Flight Status Engine",
-    version: "0.2.0-exportable",
+    version: "0.3.0-derived-status",
     provider: {
       name: "AviationStack",
       reachable: false,
@@ -351,6 +432,7 @@ function buildFallbackResponse({
     flight: {
       number: flightNumber,
       status: "unknown",
+      providerStatusRaw: "unknown",
     },
     reliability: {
       score: 25,
