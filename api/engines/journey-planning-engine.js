@@ -12,13 +12,22 @@ async function fetchJson(url, timeoutMs = 8000) {
     clearTimeout(timeout);
 
     if (!response.ok) {
-      return null;
+      return {
+        success: false,
+        _fetchError: `HTTP ${response.status}`,
+        _url: url,
+      };
     }
 
     return await response.json();
-  } catch {
+  } catch (error) {
     clearTimeout(timeout);
-    return null;
+
+    return {
+      success: false,
+      _fetchError: error?.name === "AbortError" ? "timeout" : error.message,
+      _url: url,
+    };
   }
 }
 
@@ -52,6 +61,59 @@ function getValidDate(value) {
   return date;
 }
 
+function getTrustLevel(score) {
+  if (score >= 75) return "high";
+  if (score >= 50) return "medium";
+  return "low";
+}
+
+function getStatusFromReliability(score) {
+  if (score >= 70) return "stable";
+  if (score >= 45) return "sensitive";
+  return "fragile";
+}
+
+function getHeadlineFromReliability(score) {
+  if (score >= 70) {
+    return {
+      headline: "Plano operacional estável",
+      shortMessage: "A jornada apresenta boa margem operacional.",
+    };
+  }
+
+  if (score >= 45) {
+    return {
+      headline: "Plano com margem operacional sensível",
+      shortMessage: "A jornada exige atenção e buffers conservadores.",
+    };
+  }
+
+  return {
+    headline: "Plano operacionalmente frágil",
+    shortMessage:
+      "Existem fatores de risco relevantes. Recomendada validação adicional.",
+  };
+}
+
+function isFlightFinished(status, departureDate) {
+  const normalized = String(status || "").toLowerCase();
+  const now = new Date();
+
+  if (["landed", "cancelled", "finished"].includes(normalized)) {
+    return true;
+  }
+
+  if (
+    ["departed", "active"].includes(normalized) &&
+    departureDate &&
+    departureDate < now
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 function buildFallbackFlight({
   flight,
   airport,
@@ -60,6 +122,7 @@ function buildFallbackFlight({
 }) {
   return {
     number: flight,
+    icao: null,
     airline: {
       name: airline,
       code: airline,
@@ -69,11 +132,13 @@ function buildFallbackFlight({
     route: {
       from: {
         code: airport,
+        icao: null,
         name: "Origem",
         timezone: null,
       },
       to: {
         code: null,
+        icao: null,
         name: "Destino",
         timezone: null,
       },
@@ -106,37 +171,6 @@ function getFlightDepartureTime(flightData, fallbackDepartureTime) {
   );
 }
 
-function isFlightFinished(status, departureDate) {
-  const normalized = String(status || "").toLowerCase();
-  const now = new Date();
-
-  if (["landed", "cancelled", "finished"].includes(normalized)) {
-    return true;
-  }
-
-  if (
-    ["departed", "active"].includes(normalized) &&
-    departureDate &&
-    departureDate < now
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-function getStatusFromReliability(score) {
-  if (score >= 70) return "stable";
-  if (score >= 45) return "sensitive";
-  return "fragile";
-}
-
-function getTrustLevel(score) {
-  if (score >= 75) return "high";
-  if (score >= 50) return "medium";
-  return "low";
-}
-
 function calculateJourneyReliability({
   flightEngine,
   airportEngine,
@@ -154,9 +188,10 @@ function calculateJourneyReliability({
     adjustments.push({
       factor: "flight_status",
       impact: -18,
-      reason: "Dados reais de voo indisponíveis. Aplicado fallback conservador.",
+      reason:
+        "Dados reais de voo indisponíveis. Aplicado fallback conservador.",
     });
-  } else if (flightEngine?.reliability?.score < 55) {
+  } else if ((flightEngine?.reliability?.score || 0) < 55) {
     score -= 12;
     adjustments.push({
       factor: "flight_status",
@@ -174,20 +209,26 @@ function calculateJourneyReliability({
   const airportRisk =
     airportEngine?.operationalIntelligence?.airportRisk || "medium";
 
-  if (airportRisk === "medium") {
+  if (!airportEngine?.success) {
+    score -= 14;
+    adjustments.push({
+      factor: "airport_intelligence",
+      impact: -14,
+      reason:
+        "Motor aeroportuário indisponível. Aplicado perfil conservador.",
+    });
+  } else if (airportRisk === "medium") {
     score -= 12;
     adjustments.push({
       factor: "airport_intelligence",
       impact: -12,
       reason: "Aeroporto avaliado com risco operacional médio.",
     });
-  }
-
-  if (airportRisk === "high") {
-    score -= 20;
+  } else if (airportRisk === "high" || airportRisk === "critical") {
+    score -= 22;
     adjustments.push({
       factor: "airport_intelligence",
-      impact: -20,
+      impact: -22,
       reason: "Aeroporto avaliado com risco operacional elevado.",
     });
   }
@@ -195,16 +236,21 @@ function calculateJourneyReliability({
   const routeRisk =
     routeEngine?.operationalProfile?.routeRiskLevel || "unknown";
 
-  if (routeRisk === "medium") {
+  if (!routeEngine?.success) {
+    score -= 8;
+    adjustments.push({
+      factor: "route_intelligence",
+      impact: -8,
+      reason: "Motor de rota indisponível. Aplicado buffer conservador.",
+    });
+  } else if (routeRisk === "medium") {
     score -= 8;
     adjustments.push({
       factor: "route_intelligence",
       impact: -8,
       reason: "Rota com variabilidade moderada.",
     });
-  }
-
-  if (routeRisk === "high") {
+  } else if (routeRisk === "high") {
     score -= 15;
     adjustments.push({
       factor: "route_intelligence",
@@ -216,16 +262,22 @@ function calculateJourneyReliability({
   const eventRisk =
     eventEngine?.eventIntelligence?.eventRisk || "unknown";
 
-  if (eventRisk === "medium") {
+  if (!eventEngine?.success) {
+    score -= 4;
+    adjustments.push({
+      factor: "event_disruption",
+      impact: -4,
+      reason:
+        "Motor de eventos indisponível. Mantida monitorização conservadora.",
+    });
+  } else if (eventRisk === "medium") {
     score -= 8;
     adjustments.push({
       factor: "event_disruption",
       impact: -8,
       reason: "Eventos/disrupções exigem monitorização adicional.",
     });
-  }
-
-  if (eventRisk === "high") {
+  } else if (eventRisk === "high") {
     score -= 15;
     adjustments.push({
       factor: "event_disruption",
@@ -276,63 +328,88 @@ function buildTimeline({
   departureDate,
   leaveHomeDate,
   airportArrivalDate,
-  checkInDate,
-  securityDate,
-  passportDate,
-  gateDate,
-  boardingDate,
+  checkInStartDate,
+  securityStartDate,
+  passportStartDate,
+  gateArrivalDate,
+  boardingStartDate,
   checkedIn,
   bags,
   fastTrack,
   priorityBoarding,
   flightType,
+  routeMinutes,
+  routeBuffer,
+  eventBuffer,
   checkInMinutes,
   securityMinutes,
   passportMinutes,
   gateWalkingMinutes,
-  boardingBuffer,
+  gateReadyBuffer,
   reliability,
+  airportEngine,
+  routeEngine,
+  eventEngine,
 }) {
-  const timeline = [
-    {
-      step: "leave_home",
-      title: "Sair de casa",
-      recommendedTime: leaveHomeDate.toISOString(),
-      category: "transport",
-      confidenceScore: reliability.score,
-      trustLevel: reliability.trustLevel,
-      status: reliability.score < 45 ? "risk" : "buffer",
-      source: "Journey Planning Engine",
-      buffer: "Inclui rota, eventos e margem operacional",
-      liveInsight: "Hora recomendada para iniciar a jornada até ao aeroporto.",
-      reasoning:
-        "Calculado de trás para a frente a partir da hora de partida, cruzando voo, aeroporto, transporte e perfil do passageiro.",
-    },
-    {
-      step: "arrive_airport",
-      title: "Chegar ao aeroporto",
-      recommendedTime: airportArrivalDate.toISOString(),
-      category: "airport",
-      confidenceScore: reliability.score,
-      trustLevel: reliability.trustLevel,
-      status: "buffer",
-      source: "Airport Intelligence + Journey Planning Engine",
-      liveInsight: "Chegada ao aeroporto com margem antes dos passos críticos.",
-      reasoning:
-        "Inclui tempo para check-in/bag drop, segurança, eventual controlo de passaporte, deslocação interna e margem de embarque.",
-    },
-  ];
+  const timeline = [];
+
+  timeline.push({
+    step: "leave_home",
+    title: "Sair de casa",
+    recommendedTime: leaveHomeDate.toISOString(),
+    category: "transport",
+    confidenceScore: Math.max(40, reliability.score),
+    trustLevel: reliability.trustLevel,
+    status: reliability.score < 45 ? "risk" : "buffer",
+    source: routeEngine?.success
+      ? routeEngine?.reliability?.sourceType || "Route Intelligence Engine"
+      : "Journey Planning Engine fallback",
+    buffer: `+${routeBuffer + eventBuffer} min`,
+    liveInsight: "Hora recomendada para iniciar a jornada até ao aeroporto.",
+    reasoning: `Calculado com ${routeMinutes} min de trajeto, ${routeBuffer} min de buffer de transporte e ${eventBuffer} min de eventos/disrupções.`,
+    operationalSignals: [
+      ...(routeEngine?.intelligenceFlags || []),
+      ...(eventEngine?.operationalSignals || []).filter((signal) =>
+        signal?.affects?.includes("leave_home_time")
+      ),
+    ],
+  });
+
+  timeline.push({
+    step: "arrive_airport",
+    title: "Chegar ao aeroporto",
+    recommendedTime: airportArrivalDate.toISOString(),
+    category: "airport",
+    confidenceScore:
+      airportEngine?.operationalIntelligence?.confidenceScore ||
+      Math.max(40, reliability.score),
+    trustLevel:
+      airportEngine?.operationalIntelligence?.confidenceLevel === "low"
+        ? "low"
+        : reliability.trustLevel,
+    status: "buffer",
+    source: airportEngine?.success
+      ? airportEngine?.operationalIntelligence?.sourceType ||
+        "Airport Intelligence Engine"
+      : "Airport fallback model",
+    liveInsight:
+      airportEngine?.reasoning?.[0] ||
+      "Chegada ao aeroporto calculada com margem conservadora.",
+    reasoning:
+      "Chegada ao aeroporto antes dos passos críticos: check-in/bag drop, segurança, passaporte e porta.",
+    operationalSignals: airportEngine?.intelligenceFlags || [],
+  });
 
   if (!checkedIn || bags) {
     timeline.push({
       step: "checkin_bagdrop",
       title: bags ? "Check-in / Bag drop" : "Check-in",
-      recommendedTime: checkInDate.toISOString(),
+      recommendedTime: checkInStartDate.toISOString(),
       category: "check-in",
       confidenceScore: checkedIn ? 75 : 62,
       trustLevel: checkedIn ? "high" : "medium",
       status: checkedIn ? "ready" : "buffer",
-      source: "Passenger profile + Airline rules model",
+      source: "Passenger profile + airline rules model",
       buffer: `${checkInMinutes} min`,
       liveInsight: checkedIn
         ? "Check-in online indicado como concluído."
@@ -340,13 +417,22 @@ function buildTimeline({
       reasoning: bags
         ? "Como existe bagagem de porão, a jornada inclui tempo para balcão ou bag drop."
         : "Como o check-in online não está confirmado, a jornada reserva margem para regularização.",
+      operationalSignals: !checkedIn
+        ? [
+            {
+              type: "checkin_pending",
+              label: "Check-in online por confirmar",
+              severity: "medium",
+            },
+          ]
+        : [],
     });
   }
 
   timeline.push({
     step: "security",
     title: fastTrack ? "Segurança Fast Track" : "Segurança",
-    recommendedTime: securityDate.toISOString(),
+    recommendedTime: securityStartDate.toISOString(),
     category: "security",
     confidenceScore: fastTrack ? 72 : 60,
     trustLevel: fastTrack ? "medium" : "low",
@@ -357,14 +443,16 @@ function buildTimeline({
       ? "Fast Track reduz variabilidade, mas não elimina risco operacional."
       : "Segurança é uma das maiores fontes de variabilidade aeroportuária.",
     reasoning:
-      "Tempo estimado com base no perfil interno do aeroporto e terminal, ainda sem fila live oficial.",
+      "Tempo estimado com base no perfil do aeroporto e terminal, ainda sem fila live oficial.",
+    operationalSignals:
+      airportEngine?.layers?.securityIntelligence?.flags || [],
   });
 
   if (flightType === "passport") {
     timeline.push({
       step: "passport_control",
       title: "Controlo de passaporte",
-      recommendedTime: passportDate.toISOString(),
+      recommendedTime: passportStartDate.toISOString(),
       category: "passport",
       confidenceScore: 58,
       trustLevel: "low",
@@ -374,37 +462,40 @@ function buildTimeline({
       liveInsight: "Voo com controlo de fronteira/passaporte considerado.",
       reasoning:
         "A timeline reserva tempo adicional para controlo documental antes da porta.",
+      operationalSignals: [],
     });
   }
 
   timeline.push({
     step: "gate_arrival",
     title: "Chegar à porta de embarque",
-    recommendedTime: gateDate.toISOString(),
+    recommendedTime: gateArrivalDate.toISOString(),
     category: "gate",
     confidenceScore: 65,
     trustLevel: "medium",
     status: "ready",
     source: "Gate timing model",
-    buffer: `${boardingBuffer} min antes da partida`,
+    buffer: `${gateReadyBuffer} min antes do embarque`,
     liveInsight: priorityBoarding
       ? "Embarque prioritário permite margem ligeiramente menor."
-      : "Chegada à porta recomendada com margem antes do embarque.",
-    reasoning: `Inclui deslocação interna estimada de ${gateWalkingMinutes} min e margem de embarque.`,
+      : "Chegada à porta recomendada antes da abertura provável do embarque.",
+    reasoning: `Inclui deslocação interna estimada de ${gateWalkingMinutes} min e margem para estar pronto antes do embarque.`,
+    operationalSignals: [],
   });
 
   timeline.push({
     step: "boarding",
     title: "Hora prevista de embarque",
-    recommendedTime: boardingDate.toISOString(),
+    recommendedTime: boardingStartDate.toISOString(),
     category: "boarding",
     confidenceScore: 60,
     trustLevel: "medium",
     status: "ready",
     source: "Boarding buffer model",
-    liveInsight: "Hora operacional alvo para estar pronto para embarcar.",
+    liveInsight: "Hora operacional alvo para início provável de embarque.",
     reasoning:
-      "Estimativa baseada na margem definida antes da partida; será melhorada com regras por companhia e gate real.",
+      "Estimativa baseada na margem antes da partida; será melhorada com regras por companhia, terminal e gate real.",
+    operationalSignals: [],
   });
 
   timeline.push({
@@ -419,6 +510,7 @@ function buildTimeline({
     liveInsight: "Hora usada como âncora da timeline operacional.",
     reasoning:
       "Todos os passos são calculados de trás para a frente a partir da hora prevista/estimada de partida.",
+    operationalSignals: [],
   });
 
   return timeline;
@@ -429,6 +521,7 @@ export default async function handler(req, res) {
   const origin = String(req.query.origin || "Lisboa");
   const airport = String(req.query.airport || "LIS").toUpperCase();
   const airline = String(req.query.airline || flight.slice(0, 2)).toUpperCase();
+  const terminal = String(req.query.terminal || "1");
   const transport = String(req.query.transport || "public").toLowerCase();
 
   const bags = toBoolean(req.query.bags, true);
@@ -436,6 +529,7 @@ export default async function handler(req, res) {
   const checkedIn = toBoolean(req.query.checkedIn, false);
   const fastTrack = toBoolean(req.query.fastTrack, false);
   const priorityBoarding = toBoolean(req.query.priorityBoarding, false);
+  const forceManualTime = toBoolean(req.query.forceManualTime, false);
   const flightType = String(req.query.flightType || "passport");
 
   const fallbackDepartureTime =
@@ -454,7 +548,7 @@ export default async function handler(req, res) {
     `${BASE_URL}/api/engines/airport-intelligence-engine` +
     `?airport=${encodeURIComponent(airport)}` +
     `&airline=${encodeURIComponent(airline)}` +
-    `&terminal=${encodeURIComponent(req.query.terminal || "1")}` +
+    `&terminal=${encodeURIComponent(terminal)}` +
     `&bags=${bags}` +
     `&kids=${kids}`;
 
@@ -471,7 +565,7 @@ export default async function handler(req, res) {
     `&mode=${encodeURIComponent(transport)}` +
     `&flightDate=${encodeURIComponent(fallbackDepartureTime)}`;
 
-  const [flightEngine, airportEngine, routeEngine, eventEngine] =
+  const [flightEngineRaw, airportEngine, routeEngine, eventEngine] =
     await Promise.all([
       fetchJson(flightUrl),
       fetchJson(airportUrl),
@@ -479,10 +573,38 @@ export default async function handler(req, res) {
       fetchJson(eventUrl),
     ]);
 
-  const hasLiveFlightData = Boolean(flightEngine?.success);
+  const hasLiveFlightData = Boolean(flightEngineRaw?.success) && !forceManualTime;
+
+  const flightEngine = forceManualTime
+    ? {
+        success: false,
+        provider: {
+          name: "manual_time_override",
+          reachable: false,
+          liveDataActive: false,
+        },
+        reliability: {
+          score: 55,
+          confidenceScore: 55,
+          trustLevel: "medium",
+          sourceType: "manual_time_override",
+          liveDataActive: false,
+          limitations: [
+            "Hora de partida forçada manualmente para teste ou fallback.",
+          ],
+        },
+        operationalSignals: [
+          {
+            type: "manual_time_override",
+            label: "Hora manual usada",
+            severity: "medium",
+          },
+        ],
+      }
+    : flightEngineRaw;
 
   const flightData = hasLiveFlightData
-    ? flightEngine.flight
+    ? flightEngineRaw.flight
     : buildFallbackFlight({
         flight,
         airport,
@@ -501,11 +623,17 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: false,
       engine: "Home2Flight Journey Planning Engine",
-      version: "1.1.0-safe-fallback",
+      version: "1.2.0-core-flow-corrected",
       error: "Flight departure time unavailable.",
       diagnostics: {
         flightEngineAvailable: hasLiveFlightData,
         fallbackDepartureTime,
+        urls: {
+          flightUrl,
+          airportUrl,
+          routeUrl,
+          eventUrl,
+        },
       },
     });
   }
@@ -516,7 +644,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       engine: "Home2Flight Journey Planning Engine",
-      version: "1.1.0-safe-fallback",
+      version: "1.2.0-core-flow-corrected",
       generatedAt: new Date().toISOString(),
       finishedFlight: true,
       uiSummary: {
@@ -531,7 +659,7 @@ export default async function handler(req, res) {
         operationalStatus: "completed",
       },
       flight: flightData,
-      flightIntelligence: flightEngine,
+      flightIntelligence: flightEngineRaw,
       reliability: {
         score: 95,
         trustLevel: "high",
@@ -543,7 +671,7 @@ export default async function handler(req, res) {
           title: "Voo concluído",
           recommendedTime: departureDate.toISOString(),
           category: "flight",
-          confidenceScore: flightEngine?.reliability?.confidenceScore || 82,
+          confidenceScore: flightEngineRaw?.reliability?.confidenceScore || 82,
           trustLevel: "high",
           status: "ready",
           source: "Flight Status Engine",
@@ -553,14 +681,21 @@ export default async function handler(req, res) {
             "A recomendação pré-voo só é válida antes da janela operacional do voo.",
         },
       ],
+      diagnostics: {
+        usedLiveFlightData: true,
+        urls: {
+          flightUrl,
+          airportUrl,
+          routeUrl,
+          eventUrl,
+        },
+      },
     });
   }
 
-  const airportOperational =
-    airportEngine?.operationalIntelligence || {};
+  const airportOperational = airportEngine?.operationalIntelligence || {};
 
-  const airportBuffer =
-    airportOperational.recommendedAirportBuffer || 60;
+  const airportBuffer = airportOperational.recommendedAirportBuffer || 60;
 
   const routeMinutes =
     routeEngine?.route?.liveTrafficDurationMinutes ||
@@ -574,7 +709,7 @@ export default async function handler(req, res) {
   const eventBuffer =
     eventEngine?.eventIntelligence?.totalExtraBufferMinutes || 0;
 
-  const checkInMinutes = checkedIn ? 0 : bags ? 20 : 10;
+  const checkInMinutes = checkedIn ? (bags ? 12 : 0) : bags ? 20 : 10;
 
   const baseSecurityMinutes =
     airportOperational.estimatedSecurityMinutes || 20;
@@ -585,56 +720,47 @@ export default async function handler(req, res) {
 
   const passportMinutes = flightType === "passport" ? 12 : 0;
 
-  const boardingBuffer = priorityBoarding ? 12 : 20;
+  const gateWalkingMinutes = airportOperational.estimatedWalkingMinutes || 10;
 
-  const gateWalkingMinutes =
-    airportOperational.estimatedWalkingMinutes || 10;
+  const boardingBeforeDepartureMinutes = priorityBoarding ? 35 : 28;
 
-  const totalAirportFlow =
-    checkInMinutes +
-    securityMinutes +
-    passportMinutes +
-    gateWalkingMinutes +
-    boardingBuffer;
+  const gateReadyBuffer = priorityBoarding ? 8 : 12;
 
-  const airportTotal = Math.max(airportBuffer, totalAirportFlow);
-
-  const totalBeforeDeparture =
-    airportTotal + routeMinutes + routeBuffer + eventBuffer;
-
-  const leaveHomeDate = subtractMinutes(
+  const boardingStartDate = subtractMinutes(
     departureDate,
-    totalBeforeDeparture
+    boardingBeforeDepartureMinutes
   );
 
-  const airportArrivalDate = subtractMinutes(
-    departureDate,
-    airportTotal
-  );
+  const gateArrivalDate = subtractMinutes(boardingStartDate, gateReadyBuffer);
 
-  const checkInDate = addMinutes(
-    airportArrivalDate,
-    checkInMinutes
-  );
+  const passportStartDate =
+    flightType === "passport"
+      ? subtractMinutes(gateArrivalDate, passportMinutes)
+      : gateArrivalDate;
 
-  const securityDate = addMinutes(
-    checkInDate,
+  const securityStartDate = subtractMinutes(
+    passportStartDate,
     securityMinutes
   );
 
-  const passportDate = addMinutes(
-    securityDate,
-    passportMinutes
+  const checkInStartDate = subtractMinutes(
+    securityStartDate,
+    checkInMinutes
   );
 
-  const gateDate = subtractMinutes(
-    departureDate,
-    boardingBuffer
+  const airportArrivalDate = subtractMinutes(checkInStartDate, 10);
+
+  const leaveHomeDate = subtractMinutes(
+    airportArrivalDate,
+    routeMinutes + routeBuffer + eventBuffer
   );
 
-  const boardingDate = subtractMinutes(
-    departureDate,
-    priorityBoarding ? 18 : 28
+  const totalAirportFlow = Math.round(
+    (departureDate.getTime() - airportArrivalDate.getTime()) / 60000
+  );
+
+  const totalBeforeDeparture = Math.round(
+    (departureDate.getTime() - leaveHomeDate.getTime()) / 60000
   );
 
   const reliability = calculateJourneyReliability({
@@ -647,32 +773,42 @@ export default async function handler(req, res) {
     transport,
   });
 
+  const { headline, shortMessage } = getHeadlineFromReliability(
+    reliability.score
+  );
+
   const timeline = buildTimeline({
     departureDate,
     leaveHomeDate,
     airportArrivalDate,
-    checkInDate,
-    securityDate,
-    passportDate,
-    gateDate,
-    boardingDate,
+    checkInStartDate,
+    securityStartDate,
+    passportStartDate,
+    gateArrivalDate,
+    boardingStartDate,
     checkedIn,
     bags,
     fastTrack,
     priorityBoarding,
     flightType,
+    routeMinutes,
+    routeBuffer,
+    eventBuffer,
     checkInMinutes,
     securityMinutes,
     passportMinutes,
     gateWalkingMinutes,
-    boardingBuffer,
+    gateReadyBuffer,
     reliability,
+    airportEngine,
+    routeEngine,
+    eventEngine,
   });
 
   return res.status(200).json({
     success: true,
     engine: "Home2Flight Journey Planning Engine",
-    version: "1.1.0-safe-fallback",
+    version: "1.2.0-core-flow-corrected",
     generatedAt: new Date().toISOString(),
 
     journey: {
@@ -680,6 +816,7 @@ export default async function handler(req, res) {
       airport,
       flight,
       airline,
+      terminal,
       transport,
       profile: {
         bags,
@@ -688,65 +825,66 @@ export default async function handler(req, res) {
         fastTrack,
         priorityBoarding,
         flightType,
+        forceManualTime,
       },
     },
 
     uiSummary: {
       status: getStatusFromReliability(reliability.score),
-      headline:
-        reliability.score >= 70
-          ? "Plano operacional estável"
-          : reliability.score >= 45
-          ? "Plano com margem operacional sensível"
-          : "Plano operacionalmente frágil",
-      shortMessage:
-        reliability.score >= 70
-          ? "A jornada apresenta boa margem operacional."
-          : reliability.score >= 45
-          ? "A jornada exige atenção e buffers conservadores."
-          : "Existem fatores de risco relevantes. Recomendada validação adicional.",
+      headline,
+      shortMessage,
     },
 
     decision: {
       leaveHomeTime: leaveHomeDate.toISOString(),
       airportArrivalTime: airportArrivalDate.toISOString(),
-      checkInTime: checkInDate.toISOString(),
-      securityTime: securityDate.toISOString(),
+      checkInTime: checkInStartDate.toISOString(),
+      securityTime: securityStartDate.toISOString(),
       passportControlTime:
-        flightType === "passport" ? passportDate.toISOString() : null,
-      gateArrivalTime: gateDate.toISOString(),
-      boardingTime: boardingDate.toISOString(),
+        flightType === "passport" ? passportStartDate.toISOString() : null,
+      gateArrivalTime: gateArrivalDate.toISOString(),
+      boardingTime: boardingStartDate.toISOString(),
       departureTime: departureDate.toISOString(),
       operationalStatus: getStatusFromReliability(reliability.score),
     },
 
     operationalFlow: {
+      transport: {
+        routeMinutes,
+        routeBuffer,
+        eventBuffer,
+      },
+      airportArrival: {
+        recommendedTime: airportArrivalDate.toISOString(),
+        airportBuffer,
+      },
       checkIn: {
         required: !checkedIn || bags,
         checkedInOnline: checkedIn,
         bags,
-        recommendedTime: checkInDate.toISOString(),
+        recommendedTime: checkInStartDate.toISOString(),
         estimatedMinutes: checkInMinutes,
       },
       security: {
         fastTrack,
-        recommendedTime: securityDate.toISOString(),
+        recommendedTime: securityStartDate.toISOString(),
         estimatedMinutes: securityMinutes,
       },
       passportControl: {
         required: flightType === "passport",
         recommendedTime:
-          flightType === "passport" ? passportDate.toISOString() : null,
+          flightType === "passport" ? passportStartDate.toISOString() : null,
         estimatedMinutes: passportMinutes,
       },
       gateArrival: {
-        recommendedTime: gateDate.toISOString(),
+        recommendedTime: gateArrivalDate.toISOString(),
         walkingMinutes: gateWalkingMinutes,
-        priorityBoarding,
-        boardingBuffer,
+        gateReadyBuffer,
       },
       boarding: {
-        recommendedTime: boardingDate.toISOString(),
+        priorityBoarding,
+        recommendedTime: boardingStartDate.toISOString(),
+        boardingBeforeDepartureMinutes,
       },
     },
 
@@ -756,6 +894,8 @@ export default async function handler(req, res) {
       eventBuffer,
       totalAirportFlow,
       totalBeforeDeparture,
+      gateReadyBuffer,
+      boardingBeforeDepartureMinutes,
     },
 
     reliability,
@@ -768,20 +908,44 @@ export default async function handler(req, res) {
 
     sources: {
       flight: hasLiveFlightData
-        ? flightEngine?.reliability
+        ? flightEngineRaw?.reliability
         : {
-            sourceType: "manual_or_safe_fallback",
+            sourceType: forceManualTime
+              ? "manual_time_override"
+              : "manual_or_safe_fallback",
             liveDataActive: false,
             limitations: [
-              "AviationStack indisponível ou limite mensal atingido.",
-              "Hora de partida obtida por fallback manual.",
+              forceManualTime
+                ? "Hora de partida forçada manualmente."
+                : "AviationStack indisponível ou limite mensal atingido.",
+              "Hora de partida obtida por fallback/manual.",
             ],
           },
-      airport: airportOperational || null,
+      airport: airportEngine?.operationalIntelligence || null,
       route: routeEngine?.reliability || null,
       events: eventEngine?.eventIntelligence || null,
     },
 
     timeline,
+
+    diagnostics: {
+      usedLiveFlightData: hasLiveFlightData,
+      forcedManualTime: forceManualTime,
+      airportEngineSuccess: Boolean(airportEngine?.success),
+      routeEngineSuccess: Boolean(routeEngine?.success),
+      eventEngineSuccess: Boolean(eventEngine?.success),
+      urls: {
+        flightUrl,
+        airportUrl,
+        routeUrl,
+        eventUrl,
+      },
+      fetchErrors: {
+        flight: flightEngineRaw?._fetchError || null,
+        airport: airportEngine?._fetchError || null,
+        route: routeEngine?._fetchError || null,
+        event: eventEngine?._fetchError || null,
+      },
+    },
   });
 }
