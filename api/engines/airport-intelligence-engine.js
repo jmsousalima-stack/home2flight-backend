@@ -55,6 +55,34 @@ const AIRPORT_PROFILES = {
     },
     terminalProfiles: {},
   },
+
+  AMS: {
+    code: "AMS",
+    name: "Amsterdam Schiphol",
+    city: "Amsterdam",
+    country: "Netherlands",
+    complexity: "high",
+    baselineRisk: "high",
+    defaultTerminal: "1",
+    peakWindows: [
+      { start: "06:00", end: "10:00", riskImpact: "high" },
+      { start: "16:00", end: "20:00", riskImpact: "medium" },
+    ],
+    walkingMinutes: {
+      min: 12,
+      typical: 22,
+      max: 36,
+    },
+    terminalProfiles: {
+      "1": {
+        terminal: "1",
+        pressure: "high",
+        layoutComplexity: "high",
+        securityVariability: "high",
+        walkingMinutes: 24,
+      },
+    },
+  },
 };
 
 const AIRLINE_PROFILES = {
@@ -67,6 +95,27 @@ const AIRLINE_PROFILES = {
     operationalReliability: "high",
     recommendedExtraBuffer: 5,
   },
+
+  KL: {
+    code: "KL",
+    name: "KLM",
+    type: "legacy",
+    bagDropRisk: "medium",
+    boardingStrictness: "medium",
+    operationalReliability: "high",
+    recommendedExtraBuffer: 5,
+  },
+
+  TP: {
+    code: "TP",
+    name: "TAP Air Portugal",
+    type: "legacy",
+    bagDropRisk: "medium",
+    boardingStrictness: "medium",
+    operationalReliability: "medium",
+    recommendedExtraBuffer: 7,
+  },
+
   FR: {
     code: "FR",
     name: "Ryanair",
@@ -76,6 +125,7 @@ const AIRLINE_PROFILES = {
     operationalReliability: "medium",
     recommendedExtraBuffer: 10,
   },
+
   U2: {
     code: "U2",
     name: "easyJet",
@@ -94,16 +144,29 @@ const RISK_SCORE = {
   critical: 95,
 };
 
+function clamp(number, min, max) {
+  return Math.max(min, Math.min(max, number));
+}
+
+function toBoolean(value, fallback = false) {
+  if (value === undefined || value === null) return fallback;
+  return String(value).toLowerCase() === "true";
+}
+
 function normalizeAirportCode(airport) {
   if (!airport) return "UNKNOWN";
   if (typeof airport === "string") return airport.toUpperCase();
-  return (airport.code || airport.iata || airport.airport || "UNKNOWN").toUpperCase();
+  return String(
+    airport.code || airport.iata || airport.airport || "UNKNOWN"
+  ).toUpperCase();
 }
 
 function normalizeAirlineCode(airline) {
   if (!airline) return "UNKNOWN";
   if (typeof airline === "string") return airline.toUpperCase();
-  return (airline.code || airline.iata || airline.airline || "UNKNOWN").toUpperCase();
+  return String(
+    airline.code || airline.iata || airline.airline || "UNKNOWN"
+  ).toUpperCase();
 }
 
 function getTimeHHMM(dateInput) {
@@ -137,10 +200,6 @@ function getConfidenceLevel(score) {
   return "low";
 }
 
-function clamp(number, min, max) {
-  return Math.max(min, Math.min(max, number));
-}
-
 function buildAirportProfileLayer({ airport, departureTime }) {
   const airportCode = normalizeAirportCode(airport);
   const profile = AIRPORT_PROFILES[airportCode];
@@ -150,6 +209,8 @@ function buildAirportProfileLayer({ airport, departureTime }) {
       airport: {
         code: airportCode,
         name: airportCode,
+        city: null,
+        country: null,
       },
       complexity: "medium",
       baselineRisk: "medium",
@@ -176,6 +237,7 @@ function buildAirportProfileLayer({ airport, departureTime }) {
       limitations: [
         "Perfil específico do aeroporto ainda não existe na base interna.",
       ],
+      rawProfile: null,
     };
   }
 
@@ -224,7 +286,6 @@ function buildTerminalIntelligenceLayer({ airportProfile, terminal }) {
   const selectedTerminal =
     terminal ||
     airportProfile?.rawProfile?.defaultTerminal ||
-    airportProfile?.airport?.terminal ||
     "unknown";
 
   const terminalProfile =
@@ -572,11 +633,8 @@ export async function getAirportOperationalIntelligence({
 
   return {
     success: true,
-
     airport: airportProfile.airport,
-
     operationalIntelligence,
-
     layers: {
       airportProfile,
       terminalIntelligence,
@@ -584,13 +642,62 @@ export async function getAirportOperationalIntelligence({
       securityIntelligence,
       liveOperationalSignals,
     },
-
     reasoning,
-
     intelligenceFlags,
-
     limitations,
   };
 }
 
-export default getAirportOperationalIntelligence;
+export default async function handler(req, res) {
+  try {
+    const {
+      airport = "LIS",
+      airline = "AF",
+      terminal = "1",
+      departureTime = new Date().toISOString(),
+      bags = "true",
+      kids = "false",
+      checkedIn = "false",
+    } = req.query;
+
+    const result = await getAirportOperationalIntelligence({
+      airport,
+      airline,
+      terminal,
+      departureTime,
+      passengerProfile: {
+        travellingWithKids: toBoolean(kids, false),
+        checkedInOnline: toBoolean(checkedIn, false),
+      },
+      baggageProfile: {
+        checkedBags: toBoolean(bags, true) ? 1 : 0,
+      },
+    });
+
+    return res.status(200).json({
+      ...result,
+      engine: "Home2Flight Airport Intelligence Engine",
+      version: "2.1.0-endpoint-fixed",
+      generatedAt: new Date().toISOString(),
+      request: {
+        airport,
+        airline,
+        terminal,
+        departureTime,
+        bags: toBoolean(bags, true),
+        kids: toBoolean(kids, false),
+        checkedIn: toBoolean(checkedIn, false),
+      },
+    });
+  } catch (error) {
+    console.error("[AIRPORT INTELLIGENCE ERROR]", error);
+
+    return res.status(500).json({
+      success: false,
+      engine: "Home2Flight Airport Intelligence Engine",
+      version: "2.1.0-endpoint-fixed",
+      error: error.message,
+      stack: error.stack,
+    });
+  }
+}
