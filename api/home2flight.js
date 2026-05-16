@@ -2,6 +2,8 @@
 
 import { getAirportOperationalIntelligence } from "./engines/airport-intelligence-engine";
 import { getFlightStatusIntelligence } from "./engines/flight-status-engine";
+import { getRouteOperationalIntelligence } from "./engines/route-intelligence-engine";
+import { getEventDisruptionIntelligence } from "./engines/event-disruption-engine";
 
 function toBoolean(value, fallback = false) {
   if (value === undefined || value === null) return fallback;
@@ -116,7 +118,7 @@ function getFlightDataFromIntel(
 }
 
 function isFlightFinished(status) {
-  return ["landed", "cancelled", "incident", "diverted"].includes(
+  return ["landed", "likely_landed", "departed", "cancelled", "incident", "diverted"].includes(
     String(status || "").toLowerCase()
   );
 }
@@ -127,7 +129,9 @@ function buildFinishedFlightResponse({
   departureDate,
   userContext,
 }) {
-  const isCancelled = String(flightData.status).toLowerCase() === "cancelled";
+  const status = String(flightData.status || "").toLowerCase();
+  const isCancelled = status === "cancelled";
+  const isDeparted = status === "departed";
 
   return {
     success: true,
@@ -136,9 +140,13 @@ function buildFinishedFlightResponse({
       status: isCancelled ? "critical" : "good",
       headline: isCancelled
         ? "Voo cancelado — validação necessária"
+        : isDeparted
+        ? "Voo já partiu"
         : "Voo já concluído",
       shortMessage: isCancelled
         ? "A Home2Flight não deve gerar uma timeline normal para este voo."
+        : isDeparted
+        ? "A janela operacional pré-voo terminou. Já não faz sentido recomendar hora de saída."
         : "Este voo já terminou. A timeline operacional pré-voo deixa de ser necessária.",
       confidenceLabel: getConfidenceLabel(
         flightIntel?.reliability?.trustLevel || "medium"
@@ -147,7 +155,7 @@ function buildFinishedFlightResponse({
       readinessLabel: isCancelled ? "Crítica" : "Concluída",
       mainRiskFactors: isCancelled
         ? ["O voo surge como cancelado no fornecedor externo."]
-        : ["O voo já terminou segundo o fornecedor externo."],
+        : ["O voo já saiu ou terminou segundo o fornecedor externo."],
       keyActions: isCancelled
         ? ["Confirma diretamente com a companhia aérea."]
         : ["Usa um voo futuro para gerar uma timeline operacional."],
@@ -156,6 +164,8 @@ function buildFinishedFlightResponse({
     decision: {
       headline: isCancelled
         ? "Voo cancelado — validação necessária"
+        : isDeparted
+        ? "Voo já partiu"
         : "Voo já concluído",
       leaveHomeTime: null,
       airportArrivalTime: null,
@@ -167,12 +177,15 @@ function buildFinishedFlightResponse({
     userContext,
 
     airportIntelligence: null,
+    routeIntelligence: null,
+    eventDisruptionIntelligence: null,
 
     timingBreakdown: {
       airportRecommendedBuffer: 0,
       airportArrivalMinutesBeforeDeparture: 0,
       baseTravelMinutes: 0,
       transportBuffer: 0,
+      eventExtraBufferMinutes: 0,
       leaveHomeMinutesBeforeDeparture: 0,
     },
 
@@ -185,7 +198,7 @@ function buildFinishedFlightResponse({
       explanation: {
         summary: isCancelled
           ? "O voo está cancelado. O motor bloqueou a timeline operacional automática."
-          : "O voo já terminou. O motor não gera recomendação pré-voo para voos concluídos.",
+          : "O voo já saiu/terminou. O motor não gera recomendação pré-voo para esta situação.",
       },
       adjustments: [
         {
@@ -193,7 +206,7 @@ function buildFinishedFlightResponse({
           impact: isCancelled ? -85 : 0,
           reason: isCancelled
             ? "Voo cancelado segundo o fornecedor externo."
-            : "Voo já concluído segundo o fornecedor externo.",
+            : "Voo já fora da janela operacional pré-voo.",
         },
       ],
     },
@@ -233,7 +246,11 @@ function buildFinishedFlightResponse({
     timeline: [
       {
         step: "flight_finished",
-        title: isCancelled ? "Voo cancelado" : "Voo concluído",
+        title: isCancelled
+          ? "Voo cancelado"
+          : isDeparted
+          ? "Voo já partiu"
+          : "Voo concluído",
         recommendedTime: departureDate,
         category: "flight",
         confidenceScore: flightIntel?.reliability?.confidenceScore || 70,
@@ -255,7 +272,7 @@ function buildFinishedFlightResponse({
 
     metadata: {
       engine: "Home2Flight Unified Decision Engine",
-      version: "0.8.0-flight-status-guard",
+      version: "0.9.0-route-events-integrated",
       flightEngine: flightIntel?.engine || "Flight Status Engine",
       generatedAt: new Date().toISOString(),
     },
@@ -266,6 +283,7 @@ export default async function handler(req, res) {
   try {
     const {
       flight = "AF1195",
+      origin = "Lisboa",
       airport = "LIS",
       airline = "AF",
       terminal = "1",
@@ -274,7 +292,10 @@ export default async function handler(req, res) {
       checkedIn = "false",
       flightType = "passport",
       transport = "public",
+      mode = null,
     } = req.query;
+
+    const selectedTransport = mode || transport;
 
     const hasBags = toBoolean(bags, true);
     const hasKids = toBoolean(kids, true);
@@ -303,11 +324,12 @@ export default async function handler(req, res) {
     );
 
     const userContext = {
+      origin,
       bags: hasBags,
       kids: hasKids,
       checkedIn: isCheckedIn,
       flightType,
-      transport,
+      transport: selectedTransport,
     };
 
     if (isFlightFinished(flightData.status)) {
@@ -321,21 +343,41 @@ export default async function handler(req, res) {
       );
     }
 
-    const airportIntel = await getAirportOperationalIntelligence({
-      airport: liveAirport,
-      airline: liveAirline,
-      terminal: liveTerminal,
-      departureTime: departureDate.toISOString(),
-      passengerProfile: {
-        travellingWithKids: hasKids,
-        checkedInOnline: isCheckedIn,
-      },
-      baggageProfile: {
-        checkedBags: hasBags ? 1 : 0,
-      },
-    });
+    const [airportIntel, routeIntel, eventIntel] = await Promise.all([
+      getAirportOperationalIntelligence({
+        airport: liveAirport,
+        airline: liveAirline,
+        terminal: liveTerminal,
+        departureTime: departureDate.toISOString(),
+        passengerProfile: {
+          travellingWithKids: hasKids,
+          checkedInOnline: isCheckedIn,
+        },
+        baggageProfile: {
+          checkedBags: hasBags ? 1 : 0,
+        },
+      }),
+
+      getRouteOperationalIntelligence({
+        origin,
+        airport: liveAirport,
+        mode: selectedTransport,
+      }),
+
+      getEventDisruptionIntelligence({
+        origin,
+        airport: liveAirport,
+        mode: selectedTransport,
+        flightDate: departureDate.toISOString(),
+      }),
+    ]);
 
     const airportOperational = airportIntel.operationalIntelligence;
+    const routeOperational = routeIntel.route;
+    const eventOperational = eventIntel.eventIntelligence;
+
+    const eventExtraBufferMinutes =
+      eventOperational?.totalExtraBufferMinutes || 0;
 
     const airportArrivalMinutesBeforeDeparture =
       airportOperational.recommendedAirportBuffer +
@@ -343,13 +385,20 @@ export default async function handler(req, res) {
       (hasKids ? 10 : 0) +
       (!isCheckedIn ? 8 : 0);
 
-    const baseTravelMinutes = transport === "public" ? 40 : 25;
-    const transportBuffer = transport === "public" ? 25 : 12;
+    const baseTravelMinutes =
+      routeOperational?.liveTrafficDurationMinutes ||
+      routeOperational?.baseDurationMinutes ||
+      30;
+
+    const transportBuffer =
+      routeOperational?.dynamicBufferMinutes ||
+      (selectedTransport === "public" ? 25 : 12);
 
     const leaveHomeMinutesBeforeDeparture =
       airportArrivalMinutesBeforeDeparture +
       baseTravelMinutes +
-      transportBuffer;
+      transportBuffer +
+      eventExtraBufferMinutes;
 
     const leaveHomeTime = subtractMinutes(
       departureDate,
@@ -388,6 +437,37 @@ export default async function handler(req, res) {
       reason: `Aeroporto avaliado com risco ${airportOperational.airportRisk}.`,
     });
 
+    const routeImpact = routeIntel?.reliability?.liveDataActive
+      ? Math.round((100 - routeIntel.reliability.score) * 0.15)
+      : 10;
+
+    reliabilityScore -= routeImpact;
+
+    reliabilityAdjustments.push({
+      factor: "route_intelligence",
+      impact: -routeImpact,
+      reason: routeIntel?.reliability?.liveDataActive
+        ? "Dados reais de rota/tráfego integrados no cálculo."
+        : "Rota sem dados live. Aplicado fallback conservador.",
+    });
+
+    const eventImpact =
+      eventOperational.eventRisk === "high"
+        ? 12
+        : eventOperational.eventRisk === "medium"
+        ? 7
+        : 3;
+
+    reliabilityScore -= eventImpact;
+
+    reliabilityAdjustments.push({
+      factor: "event_disruption_intelligence",
+      impact: -eventImpact,
+      reason:
+        eventIntel.intelligenceSummary?.summary ||
+        "Camada de eventos/disrupções integrada no cálculo.",
+    });
+
     if (!airportOperational.liveDataActive) {
       reliabilityScore -= 10;
       reliabilityAdjustments.push({
@@ -406,7 +486,7 @@ export default async function handler(req, res) {
       });
     }
 
-    if (transport === "public") {
+    if (selectedTransport === "public") {
       reliabilityScore -= 6;
       reliabilityAdjustments.push({
         factor: "transport",
@@ -427,8 +507,10 @@ export default async function handler(req, res) {
     reliabilityScore = Math.max(0, Math.min(100, reliabilityScore));
 
     const confidenceScore = Math.round(
-      airportOperational.confidenceScore * 0.55 +
-        (flightIntel?.reliability?.confidenceScore || 35) * 0.45
+      airportOperational.confidenceScore * 0.35 +
+        (flightIntel?.reliability?.confidenceScore || 35) * 0.3 +
+        (routeIntel?.reliability?.confidenceScore || 40) * 0.2 +
+        (eventOperational?.confidenceScore || 35) * 0.15
     );
 
     const confidenceLevel =
@@ -437,12 +519,16 @@ export default async function handler(req, res) {
     const confidenceStrengths = [
       "Motor aeroportuário estruturado por camadas.",
       "Dados reais de voo integrados através de fornecedor externo.",
-      "Decisão considera terminal, companhia, segurança, bagagem e perfil do passageiro.",
+      "Dados reais de rota/tráfego integrados através de Google Maps.",
+      "Camada de eventos/disrupções preparada para impactar buffers e fiabilidade.",
+      "Decisão considera terminal, companhia, segurança, bagagem, rota, eventos e perfil do passageiro.",
     ];
 
     const confidenceWeaknesses = [
       ...(airportIntel.limitations || []),
       ...(flightIntel?.reliability?.limitations || []),
+      ...(routeIntel?.reliability?.limitations || []),
+      ...(eventIntel?.limitations || []),
     ];
 
     const readinessScore = Math.max(0, Math.min(100, reliabilityScore + 10));
@@ -465,7 +551,7 @@ export default async function handler(req, res) {
       });
     }
 
-    if (transport === "public") {
+    if (selectedTransport === "public") {
       recommendations.push({
         type: "transport",
         priority: "high",
@@ -478,6 +564,14 @@ export default async function handler(req, res) {
         type: "airport_margin",
         priority: "critical",
         title: "Mantém margem adicional neste aeroporto",
+      });
+    }
+
+    if (eventExtraBufferMinutes > 0) {
+      recommendations.push({
+        type: "event_monitoring",
+        priority: "medium",
+        title: "Mantém atenção a eventos externos e disrupções locais",
       });
     }
 
@@ -529,31 +623,29 @@ export default async function handler(req, res) {
         title: "Sair de casa",
         recommendedTime: leaveHomeTime,
         category: "transport",
-        confidenceScore: transport === "public" ? 70 : 82,
-        trustLevel: transport === "public" ? "medium" : "high",
-        status: transport === "public" ? "buffer" : "ready",
-        dynamicStatus:
-          transport === "public" ? "transport_monitoring" : "stable",
-        source: "Transport profile",
+        confidenceScore: routeIntel?.reliability?.confidenceScore || 70,
+        trustLevel: routeIntel?.reliability?.trustLevel || "medium",
+        status:
+          routeIntel?.operationalProfile?.routeRiskLevel === "high"
+            ? "risk"
+            : "buffer",
+        dynamicStatus: "route_monitoring",
+        source: routeIntel?.reliability?.sourceType || "Route Intelligence",
         liveInsight:
-          transport === "public"
-            ? "Transporte público exige margem adicional por depender de horários e possíveis esperas."
-            : "Trajeto privado apresenta variabilidade reduzida.",
-        reasoning:
-          transport === "public"
-            ? `Saída calculada com ${baseTravelMinutes} min de trajeto e ${transportBuffer} min de buffer de transporte.`
-            : "Saída otimizada para trajeto privado com menor variabilidade operacional.",
-        operationalSignals:
-          transport === "public"
-            ? [
-                {
-                  type: "public_transport",
-                  label: "Dependência de transporte público",
-                  severity: "medium",
-                },
-              ]
-            : [],
-        buffer: transport === "public" ? `+${transportBuffer} min` : undefined,
+          routeIntel?.intelligenceSummary?.summary ||
+          "Rota calculada pelo Route Intelligence Engine.",
+        reasoning: `Saída calculada com ${baseTravelMinutes} min de trajeto, ${transportBuffer} min de buffer de transporte e ${eventExtraBufferMinutes} min de buffer por eventos/disrupções.`,
+        operationalSignals: [
+          ...(routeIntel?.intelligenceFlags || []),
+          ...(eventIntel?.operationalSignals || []).filter((signal) =>
+            signal.affects?.some((affect) =>
+              ["public_transport", "airport_access", "leave_home_time"].includes(
+                affect
+              )
+            )
+          ),
+        ],
+        buffer: `+${transportBuffer + eventExtraBufferMinutes} min`,
       },
       {
         step: "arrive_airport",
@@ -570,7 +662,14 @@ export default async function handler(req, res) {
           airportIntel.reasoning?.[0] ||
           "Chegada ao aeroporto calculada pelo Airport Intelligence Engine.",
         reasoning: `Chegada recomendada com ${airportOperational.recommendedAirportBuffer} min de buffer aeroportuário, incluindo segurança, deslocação interna e variabilidade operacional.`,
-        operationalSignals: airportIntel.intelligenceFlags || [],
+        operationalSignals: [
+          ...(airportIntel.intelligenceFlags || []),
+          ...(eventIntel?.operationalSignals || []).filter((signal) =>
+            signal.affects?.some((affect) =>
+              ["airport_security", "bag_drop", "gate_timing"].includes(affect)
+            )
+          ),
+        ],
         buffer: `+${airportOperational.recommendedAirportBuffer} min`,
       },
       {
@@ -630,12 +729,15 @@ export default async function handler(req, res) {
       userContext,
 
       airportIntelligence: airportIntel,
+      routeIntelligence: routeIntel,
+      eventDisruptionIntelligence: eventIntel,
 
       timingBreakdown: {
         airportRecommendedBuffer: airportOperational.recommendedAirportBuffer,
         airportArrivalMinutesBeforeDeparture,
         baseTravelMinutes,
         transportBuffer,
+        eventExtraBufferMinutes,
         leaveHomeMinutesBeforeDeparture,
       },
 
@@ -645,7 +747,7 @@ export default async function handler(req, res) {
         riskLevel: getRiskFromScore(100 - reliabilityScore + 15),
         explanation: {
           summary:
-            "Pontuação calculada com base em voo real, Airport Intelligence Engine, transporte e contexto do utilizador.",
+            "Pontuação calculada com base em voo real, rota real, Airport Intelligence Engine, eventos/disrupções e contexto do utilizador.",
         },
         adjustments: reliabilityAdjustments,
       },
@@ -667,6 +769,8 @@ export default async function handler(req, res) {
       alerts: [
         ...(airportIntel.intelligenceFlags || []),
         ...(flightIntel?.operationalSignals || []),
+        ...(routeIntel?.intelligenceFlags || []),
+        ...(eventIntel?.operationalSignals || []),
       ],
 
       communityReports: [],
@@ -675,9 +779,11 @@ export default async function handler(req, res) {
 
       metadata: {
         engine: "Home2Flight Unified Decision Engine",
-        version: "0.8.0-flight-status-guard",
+        version: "0.9.0-route-events-integrated",
         airportEngine: "Airport Intelligence Engine v2",
         flightEngine: flightIntel?.engine || "Flight Status Engine",
+        routeEngine: routeIntel?.engine || "Route Intelligence Engine",
+        eventEngine: eventIntel?.engine || "Event & Disruption Intelligence Engine",
         generatedAt: new Date().toISOString(),
       },
     });
