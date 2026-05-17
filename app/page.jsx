@@ -9,7 +9,7 @@ import ReliabilityCard from "../components/ReliabilityCard";
 import TimelineCard from "../components/TimelineCard";
 
 const ENGINE_URL =
-  "/api/home2flight?flight=TP1367&origin=Lisboa&airport=LIS&airline=TP&terminal=1&bags=true&kids=true&checkedIn=false&flightType=passport&transport=public";
+  "/api/engines/journey-planning-engine?flight=KL1578&origin=Lisboa&airport=LIS&airline=KL&terminal=1&transport=public&bags=true&kids=true&checkedIn=false&fastTrack=false&priorityBoarding=false&flightType=passport&forceManualTime=true&departureTime=2026-05-20T16:40:00%2B01:00";
 
 function isFinishedFlight(data) {
   const status = String(data?.flight?.status || "").toLowerCase();
@@ -18,8 +18,83 @@ function isFinishedFlight(data) {
   return (
     status === "landed" ||
     status === "finished" ||
+    status === "cancelled" ||
     firstStep === "flight_finished"
   );
+}
+
+function normalizeJourneyData(data) {
+  if (!data) return null;
+
+  return {
+    ...data,
+
+    confidence: {
+      level: data?.reliability?.trustLevel || "low",
+      score:
+        data?.airportIntelligence?.operationalIntelligence?.confidenceScore ||
+        data?.sources?.route?.confidenceScore ||
+        data?.reliability?.score ||
+        0,
+      strengths: [
+        data?.flightIntelligence?.success
+          ? "Dados reais de voo disponíveis."
+          : "Hora de voo em modo manual/fallback.",
+        data?.routeIntelligence?.success
+          ? "Rota/trânsito integrados no cálculo."
+          : "Rota em fallback conservador.",
+        data?.airportIntelligence?.success
+          ? "Perfil aeroportuário integrado na timeline."
+          : "Perfil aeroportuário indisponível.",
+      ],
+      weaknesses: [
+        ...(data?.airportIntelligence?.limitations || []),
+        ...(data?.routeIntelligence?.reliability?.limitations || []),
+        ...(data?.eventDisruptionIntelligence?.limitations || []),
+      ],
+    },
+
+    uiSummary: {
+      status: data?.uiSummary?.status || "sensitive",
+      headline: data?.uiSummary?.headline || "Plano operacional calculado",
+      shortMessage:
+        data?.uiSummary?.shortMessage ||
+        "Timeline gerada pelo Journey Planning Engine.",
+      confidenceLabel:
+        data?.reliability?.trustLevel === "high"
+          ? "Confiança elevada"
+          : data?.reliability?.trustLevel === "medium"
+          ? "Confiança moderada"
+          : "Confiança reduzida",
+      reliabilityLabel:
+        data?.reliability?.score >= 70
+          ? "Fiável"
+          : data?.reliability?.score >= 45
+          ? "Sensível"
+          : "Frágil",
+      readinessLabel:
+        data?.reliability?.readiness === "ready"
+          ? "Pronta"
+          : data?.reliability?.readiness === "sensitive"
+          ? "Sensível"
+          : "Frágil",
+      mainRiskFactors:
+        data?.reliability?.adjustments
+          ?.filter((item) => item.impact < 0)
+          ?.map((item) => item.reason) || [],
+      keyActions: [
+        !data?.journey?.profile?.checkedIn
+          ? "Faz o check-in online assim que possível"
+          : null,
+        data?.journey?.profile?.bags
+          ? "Reserva margem para bag drop"
+          : null,
+        data?.journey?.transport === "public"
+          ? "Confirma transportes antes de sair"
+          : null,
+      ].filter(Boolean),
+    },
+  };
 }
 
 export default function Home() {
@@ -40,10 +115,10 @@ export default function Home() {
         const json = await response.json();
 
         if (!json?.success) {
-          throw new Error(json?.error || "Engine failed");
+          throw new Error(json?.error || "Journey Planning Engine failed");
         }
 
-        setTimelineData(json);
+        setTimelineData(normalizeJourneyData(json));
       } catch (err) {
         setError(err.message);
       }
@@ -90,7 +165,7 @@ export default function Home() {
               lineHeight: 1.5,
             }}
           >
-            Não foi possível carregar o motor operacional.
+            Não foi possível carregar o Journey Planning Engine.
           </p>
 
           <p
@@ -98,6 +173,7 @@ export default function Home() {
               color: "#94a3b8",
               fontSize: 13,
               marginTop: 16,
+              wordBreak: "break-word",
             }}
           >
             {error}
@@ -120,7 +196,7 @@ export default function Home() {
           fontFamily: "Arial, sans-serif",
         }}
       >
-        Loading Home2Flight Operational Engine...
+        Loading Home2Flight Journey Planning Engine...
       </main>
     );
   }
@@ -216,91 +292,6 @@ export default function Home() {
             destino. A Home2Flight não gera uma recomendação pré-voo normal
             para voos concluídos.
           </p>
-
-          <div
-            style={{
-              background: "rgba(15,23,42,0.72)",
-              border: "1px solid rgba(255,255,255,0.10)",
-              borderRadius: 24,
-              padding: 20,
-              marginBottom: 18,
-            }}
-          >
-            <div
-              style={{
-                color: "#94a3b8",
-                fontSize: 13,
-                fontWeight: 800,
-                marginBottom: 8,
-              }}
-            >
-              Estado do voo
-            </div>
-
-            <div
-              style={{
-                fontSize: 28,
-                fontWeight: 950,
-                marginBottom: 8,
-              }}
-            >
-              {String(timelineData?.flight?.status || "concluído").toUpperCase()}
-            </div>
-
-            <div
-              style={{
-                color: "#cbd5e1",
-                fontSize: 15,
-                lineHeight: 1.4,
-              }}
-            >
-              {timelineData?.flight?.route?.from?.code || "Origem"} →{" "}
-              {timelineData?.flight?.route?.to?.code || "Destino"}
-            </div>
-          </div>
-
-          <div
-            style={{
-              background: "rgba(15,23,42,0.72)",
-              border: "1px solid rgba(255,255,255,0.10)",
-              borderRadius: 24,
-              padding: 20,
-            }}
-          >
-            <div
-              style={{
-                color: "#94a3b8",
-                fontSize: 13,
-                fontWeight: 800,
-                marginBottom: 8,
-              }}
-            >
-              Próxima ação
-            </div>
-
-            <div
-              style={{
-                fontSize: 20,
-                fontWeight: 900,
-                lineHeight: 1.25,
-                marginBottom: 8,
-              }}
-            >
-              Usa um voo futuro para gerar uma nova timeline operacional.
-            </div>
-
-            <p
-              style={{
-                color: "#cbd5e1",
-                margin: 0,
-                lineHeight: 1.45,
-                fontSize: 15,
-              }}
-            >
-              Este comportamento protege o utilizador de uma recomendação
-              operacional incorreta.
-            </p>
-          </div>
         </section>
       </main>
     );
