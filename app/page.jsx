@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import DecisionExplanationCard from "../components/DecisionExplanationCard";
+import { useEffect, useState } from "react";
+
 import LiveOperationalStatusBar from "../components/LiveOperationalStatusBar";
+import OperationalBriefingCard from "../components/OperationalBriefingCard";
 
 const ENGINE_URL =
   "/api/engines/journey-planning-engine?flight=KL1578&origin=Lisboa&airport=LIS&airline=KL&terminal=1&transport=public&bags=true&kids=true&checkedIn=false&fastTrack=false&priorityBoarding=false&flightType=passport&forceManualTime=true&departureTime=2026-05-20T16:40:00%2B01:00";
@@ -20,48 +21,18 @@ function formatTime(value) {
   });
 }
 
-function getOperationalState(status) {
-  if (status === "stable") {
-    return {
-      label: "Fluxo operacional estável",
-      shortLabel: "Estável",
-      color: "#22c55e",
-      soft: "rgba(34,197,94,0.16)",
-      glow: "rgba(34,197,94,0.42)",
-    };
-  }
-
-  if (status === "sensitive") {
-    return {
-      label: "Monitorização operacional ativa",
-      shortLabel: "Sensível",
-      color: "#f59e0b",
-      soft: "rgba(245,158,11,0.16)",
-      glow: "rgba(245,158,11,0.42)",
-    };
-  }
-
-  return {
-    label: "Plano operacionalmente frágil",
-    shortLabel: "Frágil",
-    color: "#ef4444",
-    soft: "rgba(239,68,68,0.16)",
-    glow: "rgba(239,68,68,0.45)",
-  };
-}
-
 function getStepColor(category) {
   switch (category) {
     case "transport":
       return "#3b82f6";
     case "airport":
       return "#f59e0b";
+    case "check-in":
+      return "#22d3ee";
     case "security":
       return "#ef4444";
     case "passport":
       return "#a855f7";
-    case "check-in":
-      return "#06b6d4";
     case "gate":
     case "boarding":
       return "#22c55e";
@@ -70,6 +41,30 @@ function getStepColor(category) {
     default:
       return "#94a3b8";
   }
+}
+
+function getOperationalTone(score) {
+  if (score >= 75) {
+    return {
+      label: "Estável",
+      color: "#22c55e",
+      glow: "rgba(34,197,94,0.35)",
+    };
+  }
+
+  if (score >= 50) {
+    return {
+      label: "Sensível",
+      color: "#f59e0b",
+      glow: "rgba(245,158,11,0.35)",
+    };
+  }
+
+  return {
+    label: "Conservadora",
+    color: "#ef4444",
+    glow: "rgba(239,68,68,0.35)",
+  };
 }
 
 function getAirportLabel(data) {
@@ -148,10 +143,6 @@ export default function Home() {
     load();
   }, []);
 
-  const operationalState = useMemo(() => {
-    return getOperationalState(data?.decision?.operationalStatus);
-  }, [data]);
-
   if (error) {
     return (
       <main
@@ -210,6 +201,8 @@ export default function Home() {
     data?.routeIntelligence?.reliability?.confidenceScore ??
     reliabilityScore;
 
+  const tone = getOperationalTone(reliabilityScore);
+
   return (
     <main
       style={{
@@ -233,12 +226,6 @@ export default function Home() {
           0% { opacity: 0.62; transform: scale(1); }
           50% { opacity: 0.92; transform: scale(1.04); }
           100% { opacity: 0.62; transform: scale(1); }
-        }
-
-        @keyframes h2fFloat {
-          0% { transform: translateY(0); }
-          50% { transform: translateY(-6px); }
-          100% { transform: translateY(0); }
         }
       `}</style>
 
@@ -273,7 +260,7 @@ export default function Home() {
               width: 280,
               height: 280,
               borderRadius: 999,
-              background: operationalState.glow,
+              background: tone.glow,
               filter: "blur(90px)",
               animation: "h2fBreath 4.8s ease-in-out infinite",
             }}
@@ -287,8 +274,8 @@ export default function Home() {
               width: 18,
               height: 18,
               borderRadius: 999,
-              background: operationalState.color,
-              boxShadow: `0 0 30px ${operationalState.color}`,
+              background: tone.color,
+              boxShadow: `0 0 30px ${tone.color}`,
             }}
           >
             <div
@@ -296,7 +283,7 @@ export default function Home() {
                 position: "absolute",
                 inset: 0,
                 borderRadius: 999,
-                background: operationalState.color,
+                background: tone.color,
                 animation: "h2fPulse 2.2s ease-in-out infinite",
               }}
             />
@@ -346,8 +333,8 @@ export default function Home() {
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 10,
-                background: operationalState.soft,
-                border: `1px solid ${operationalState.color}44`,
+                background: "rgba(255,255,255,0.06)",
+                border: `1px solid ${tone.color}55`,
                 borderRadius: 999,
                 padding: "10px 16px",
                 marginBottom: 24,
@@ -358,11 +345,11 @@ export default function Home() {
                   width: 8,
                   height: 8,
                   borderRadius: 999,
-                  background: operationalState.color,
+                  background: tone.color,
                 }}
               />
               <span style={{ fontWeight: 900, fontSize: 13 }}>
-                {operationalState.label}
+                Estratégia {tone.label}
               </span>
             </div>
 
@@ -440,12 +427,12 @@ export default function Home() {
         >
           {[
             {
-              title: "Fiabilidade",
-              value: `${reliabilityScore}%`,
-              sub: operationalState.shortLabel,
+              title: "Estratégia",
+              value: tone.label,
+              sub: "Plano operacional",
             },
             {
-              title: "Confiança",
+              title: "Confiança dos dados",
               value: `${confidenceScore}%`,
               sub: "Modelo ativo",
             },
@@ -511,7 +498,7 @@ export default function Home() {
           ))}
         </section>
 
-        <DecisionExplanationCard data={data} />
+        <OperationalBriefingCard timelineData={data} />
 
         <section
           style={{
@@ -520,7 +507,6 @@ export default function Home() {
             border: "1px solid rgba(255,255,255,0.07)",
             borderRadius: 36,
             padding: 24,
-            animation: "h2fFloat 6s ease-in-out infinite",
           }}
         >
           <div
