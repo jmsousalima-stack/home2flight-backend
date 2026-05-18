@@ -1,3 +1,4 @@
+import DecisionExplanationCard from "../components/DecisionExplanationCard";
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -508,6 +509,8 @@ export default function Home() {
             </div>
           ))}
         </section>
+        
+<DecisionExplanationCard data={data} />
 
         <section
           style={{
