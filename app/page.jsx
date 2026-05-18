@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import LiveOperationalStatusBar from "../components/LiveOperationalStatusBar";
 
 const ENGINE_URL =
   "/api/engines/journey-planning-engine?flight=KL1578&origin=Lisboa&airport=LIS&airline=KL&terminal=1&transport=public&bags=true&kids=true&checkedIn=false&fastTrack=false&priorityBoarding=false&flightType=passport&forceManualTime=true&departureTime=2026-05-20T16:40:00%2B01:00";
@@ -61,7 +62,6 @@ function getStepColor(category) {
     case "check-in":
       return "#06b6d4";
     case "gate":
-      return "#22c55e";
     case "boarding":
       return "#22c55e";
     case "flight":
@@ -314,6 +314,8 @@ export default function Home() {
             >
               Home2Flight Mission Control
             </div>
+
+            <LiveOperationalStatusBar timelineData={data} />
 
             <div
               style={{
