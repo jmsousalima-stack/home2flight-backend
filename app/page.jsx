@@ -1,7 +1,7 @@
-import DecisionExplanationCard from "../components/DecisionExplanationCard";
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import DecisionExplanationCard from "../components/DecisionExplanationCard";
 import LiveOperationalStatusBar from "../components/LiveOperationalStatusBar";
 
 const ENGINE_URL =
@@ -310,7 +310,7 @@ export default function Home() {
                 textTransform: "uppercase",
                 color: "#9fb0d1",
                 fontWeight: 950,
-                marginBottom: 22,
+                marginBottom: 18,
               }}
             >
               Home2Flight Mission Control
@@ -323,6 +323,7 @@ export default function Home() {
                 color: "#dbe4f0",
                 fontSize: 18,
                 marginBottom: 8,
+                marginTop: 18,
               }}
             >
               Hora recomendada para sair
@@ -509,8 +510,8 @@ export default function Home() {
             </div>
           ))}
         </section>
-        
-<DecisionExplanationCard data={data} />
+
+        <DecisionExplanationCard data={data} />
 
         <section
           style={{
