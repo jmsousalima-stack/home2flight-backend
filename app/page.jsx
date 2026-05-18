@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const ENGINE_URL =
   "/api/home2flight?flight=KL1578&origin=Lisboa&airport=LIS&airline=KL&terminal=1&bags=true&kids=true&checkedIn=false&flightType=passport&transport=public&forceManualTime=true&manualDepartureTime=2026-05-20T16:40:00+01:00";
@@ -14,28 +14,28 @@ function formatTime(value) {
   });
 }
 
-function getStatusColor(status) {
+function getOperationalState(status) {
   if (status === "stable") {
-    return "#22c55e";
+    return {
+      label: "Fluxo operacional estável",
+      color: "#22c55e",
+      glow: "rgba(34,197,94,0.45)",
+    };
   }
 
   if (status === "sensitive") {
-    return "#f59e0b";
+    return {
+      label: "Monitorização ativa",
+      color: "#f59e0b",
+      glow: "rgba(245,158,11,0.45)",
+    };
   }
 
-  return "#ef4444";
-}
-
-function getStatusLabel(status) {
-  if (status === "stable") {
-    return "Plano estável";
-  }
-
-  if (status === "sensitive") {
-    return "Plano sensível";
-  }
-
-  return "Plano frágil";
+  return {
+    label: "Plano operacionalmente frágil",
+    color: "#ef4444",
+    glow: "rgba(239,68,68,0.45)",
+  };
 }
 
 export default function Home() {
@@ -43,17 +43,27 @@ export default function Home() {
 
   useEffect(() => {
     async function load() {
-      const response = await fetch(ENGINE_URL, {
-        cache: "no-store",
-      });
+      try {
+        const response = await fetch(ENGINE_URL, {
+          cache: "no-store",
+        });
 
-      const json = await response.json();
+        const json = await response.json();
 
-      setData(json);
+        setData(json);
+      } catch (error) {
+        console.error(error);
+      }
     }
 
     load();
   }, []);
+
+  const operationalState = useMemo(() => {
+    return getOperationalState(
+      data?.decision?.operationalStatus
+    );
+  }, [data]);
 
   if (!data) {
     return (
@@ -65,232 +75,248 @@ export default function Home() {
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
-          fontFamily: "Arial",
+          fontFamily: "Arial, sans-serif",
         }}
       >
-        Loading Home2Flight...
+        Loading Home2Flight Mission Control...
       </main>
     );
   }
 
-  const status =
-    data?.decision?.operationalStatus || "fragile";
-
-  const statusColor =
-    getStatusColor(status);
-
-  const timeline =
-    data?.timeline || [];
+  const timeline = data?.timeline || [];
 
   return (
     <main
       style={{
         minHeight: "100vh",
         background:
-          "radial-gradient(circle at top, #0f172a 0%, #020617 60%)",
-        padding: "24px 16px 100px",
-        fontFamily: "Arial, sans-serif",
+          "radial-gradient(circle at top, #13203f 0%, #020617 58%)",
         color: "white",
+        padding: "24px 16px 120px",
+        fontFamily: "Arial, sans-serif",
+        overflow: "hidden",
       }}
     >
       <div
         style={{
           width: "100%",
-          maxWidth: 520,
+          maxWidth: 540,
           margin: "0 auto",
           display: "flex",
           flexDirection: "column",
-          gap: 20,
+          gap: 22,
         }}
       >
         {/* HERO */}
 
         <section
           style={{
+            position: "relative",
+            overflow: "hidden",
+            borderRadius: 38,
+            padding: 28,
             background:
-              "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))",
+              "linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04))",
             border:
               "1px solid rgba(255,255,255,0.08)",
-            borderRadius: 34,
-            padding: 26,
             boxShadow:
-              "0 30px 80px rgba(0,0,0,0.35)",
+              "0 40px 120px rgba(0,0,0,0.45)",
+            backdropFilter: "blur(20px)",
           }}
         >
+          {/* glow */}
+
           <div
             style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              marginBottom: 26,
+              position: "absolute",
+              top: -120,
+              right: -80,
+              width: 260,
+              height: 260,
+              borderRadius: 999,
+              background: operationalState.glow,
+              filter: "blur(90px)",
+              opacity: 0.7,
+            }}
+          />
+
+          {/* top */}
+
+          <div
+            style={{
+              position: "relative",
+              zIndex: 2,
             }}
           >
-            <div>
-              <div
-                style={{
-                  fontSize: 12,
-                  letterSpacing: 3,
-                  textTransform: "uppercase",
-                  color: "#94a3b8",
-                  fontWeight: 900,
-                  marginBottom: 12,
-                }}
-              >
-                Home2Flight
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                marginBottom: 24,
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    letterSpacing: 4,
+                    textTransform: "uppercase",
+                    color: "#94a3b8",
+                    fontWeight: 900,
+                    marginBottom: 16,
+                  }}
+                >
+                  Home2Flight Mission Control
+                </div>
+
+                <div
+                  style={{
+                    color: "#cbd5e1",
+                    fontSize: 18,
+                    marginBottom: 8,
+                  }}
+                >
+                  Hora recomendada para sair
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 86,
+                    lineHeight: 0.9,
+                    letterSpacing: "-6px",
+                    fontWeight: 950,
+                  }}
+                >
+                  {formatTime(
+                    data?.decision?.leaveHomeTime
+                  )}
+                </div>
               </div>
 
               <div
                 style={{
-                  fontSize: 18,
-                  color: "#cbd5e1",
+                  width: 16,
+                  height: 16,
+                  borderRadius: 999,
+                  background:
+                    operationalState.color,
+                  boxShadow: `0 0 30px ${operationalState.color}`,
+                  marginTop: 12,
+                }}
+              />
+            </div>
+
+            {/* operational state */}
+
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 10,
+                background:
+                  "rgba(255,255,255,0.06)",
+                border:
+                  "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 999,
+                padding: "10px 16px",
+                marginBottom: 24,
+              }}
+            >
+              <div
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 999,
+                  background:
+                    operationalState.color,
+                }}
+              />
+
+              <div
+                style={{
+                  fontWeight: 800,
+                  fontSize: 13,
+                }}
+              >
+                {operationalState.label}
+              </div>
+            </div>
+
+            {/* flight strip */}
+
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                flexWrap: "wrap",
+                marginBottom: 26,
+              }}
+            >
+              {[
+                `✈ ${data?.flight?.number}`,
+                `🛫 ${data?.airport}`,
+                `🏢 T${data?.journey?.terminal}`,
+                "📡 Live Monitoring",
+              ].map((item) => (
+                <div
+                  key={item}
+                  style={{
+                    background:
+                      "rgba(255,255,255,0.05)",
+                    border:
+                      "1px solid rgba(255,255,255,0.05)",
+                    borderRadius: 16,
+                    padding: "10px 14px",
+                    fontSize: 13,
+                    color: "#dbe4f0",
+                  }}
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+
+            {/* insight */}
+
+            <div
+              style={{
+                background:
+                  "rgba(255,255,255,0.05)",
+                border:
+                  "1px solid rgba(255,255,255,0.06)",
+                borderRadius: 26,
+                padding: 22,
+              }}
+            >
+              <div
+                style={{
+                  color: "#94a3b8",
+                  fontSize: 12,
+                  fontWeight: 900,
+                  letterSpacing: 2,
                   marginBottom: 10,
                 }}
               >
-                Sair de casa
+                LIVE OPERATIONAL INSIGHT
               </div>
 
               <div
                 style={{
-                  fontSize: 76,
-                  lineHeight: 0.95,
-                  fontWeight: 950,
-                  letterSpacing: "-5px",
+                  fontSize: 22,
+                  lineHeight: 1.4,
+                  fontWeight: 800,
                 }}
               >
-                {formatTime(
-                  data?.decision?.leaveHomeTime
-                )}
+                Segurança com variabilidade moderada.
+                Transporte público sob monitorização
+                ativa.
               </div>
-            </div>
-
-            <div
-              style={{
-                width: 18,
-                height: 18,
-                borderRadius: 999,
-                background: statusColor,
-                boxShadow: `0 0 24px ${statusColor}`,
-                marginTop: 12,
-              }}
-            />
-          </div>
-
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              background: "rgba(255,255,255,0.06)",
-              border:
-                "1px solid rgba(255,255,255,0.06)",
-              borderRadius: 999,
-              padding: "10px 14px",
-              marginBottom: 22,
-            }}
-          >
-            <div
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: 999,
-                background: statusColor,
-              }}
-            />
-
-            <div
-              style={{
-                fontWeight: 800,
-                fontSize: 13,
-              }}
-            >
-              {getStatusLabel(status)}
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 10,
-              marginBottom: 24,
-            }}
-          >
-            <div
-              style={{
-                background:
-                  "rgba(255,255,255,0.05)",
-                borderRadius: 14,
-                padding: "10px 12px",
-                fontSize: 13,
-                color: "#cbd5e1",
-              }}
-            >
-              ✈️ {data?.flight?.number}
-            </div>
-
-            <div
-              style={{
-                background:
-                  "rgba(255,255,255,0.05)",
-                borderRadius: 14,
-                padding: "10px 12px",
-                fontSize: 13,
-                color: "#cbd5e1",
-              }}
-            >
-              🛫 {data?.airport}
-            </div>
-
-            <div
-              style={{
-                background:
-                  "rgba(255,255,255,0.05)",
-                borderRadius: 14,
-                padding: "10px 12px",
-                fontSize: 13,
-                color: "#cbd5e1",
-              }}
-            >
-              🏢 Terminal {data?.journey?.terminal}
-            </div>
-          </div>
-
-          <div
-            style={{
-              background:
-                "rgba(255,255,255,0.05)",
-              border:
-                "1px solid rgba(255,255,255,0.06)",
-              borderRadius: 22,
-              padding: 18,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 12,
-                color: "#94a3b8",
-                marginBottom: 8,
-                fontWeight: 800,
-              }}
-            >
-              LIVE OPERATIONAL INSIGHT
-            </div>
-
-            <div
-              style={{
-                fontSize: 18,
-                lineHeight: 1.45,
-                color: "white",
-                fontWeight: 700,
-              }}
-            >
-              Segurança com variabilidade moderada.
-              Transporte público requer atenção.
             </div>
           </div>
         </section>
 
-        {/* STATUS */}
+        {/* LIVE STATUS */}
 
         <section
           style={{
@@ -301,59 +327,50 @@ export default function Home() {
         >
           {[
             {
-              label: "Aeroporto",
-              value:
-                data?.airportIntelligence
-                  ?.operationalIntelligence
-                  ?.airportRisk || "medium",
+              title: "Aeroporto",
+              value: "Fluxo moderado",
             },
             {
-              label: "Transporte",
-              value:
-                data?.routeIntelligence
-                  ?.operationalProfile
-                  ?.routeRiskLevel || "low",
+              title: "Transporte",
+              value: "Trajeto estável",
             },
             {
-              label: "Check-in",
-              value:
-                data?.journey?.profile
-                  ?.checkedIn
-                  ? "done"
-                  : "pending",
+              title: "Check-in",
+              value: "Por confirmar",
             },
             {
-              label: "Boarding",
-              value: "monitoring",
+              title: "Boarding",
+              value: "Monitorização ativa",
             },
           ].map((item) => (
             <div
-              key={item.label}
+              key={item.title}
               style={{
                 background:
                   "rgba(255,255,255,0.05)",
                 border:
                   "1px solid rgba(255,255,255,0.06)",
-                borderRadius: 24,
-                padding: 18,
+                borderRadius: 26,
+                padding: 20,
+                backdropFilter: "blur(14px)",
               }}
             >
               <div
                 style={{
                   color: "#94a3b8",
                   fontSize: 13,
-                  marginBottom: 12,
+                  marginBottom: 14,
                   fontWeight: 700,
                 }}
               >
-                {item.label}
+                {item.title}
               </div>
 
               <div
                 style={{
-                  fontSize: 16,
+                  fontSize: 18,
+                  lineHeight: 1.35,
                   fontWeight: 900,
-                  textTransform: "capitalize",
                 }}
               >
                 {item.value}
@@ -362,34 +379,97 @@ export default function Home() {
           ))}
         </section>
 
-        {/* TIMELINE */}
+        {/* NEXT STEP */}
 
         <section
           style={{
             background:
-              "rgba(255,255,255,0.04)",
+              "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03))",
             border:
               "1px solid rgba(255,255,255,0.06)",
             borderRadius: 34,
-            padding: 22,
+            padding: 24,
           }}
         >
           <div
             style={{
-              fontSize: 26,
+              color: "#94a3b8",
+              fontSize: 12,
+              letterSpacing: 3,
+              textTransform: "uppercase",
               fontWeight: 900,
-              marginBottom: 24,
-              letterSpacing: "-1px",
+              marginBottom: 14,
             }}
           >
-            Operational Timeline
+            Next Critical Step
           </div>
+
+          <div
+            style={{
+              fontSize: 34,
+              lineHeight: 1.05,
+              letterSpacing: "-2px",
+              fontWeight: 950,
+              marginBottom: 12,
+            }}
+          >
+            Confirmar check-in online
+          </div>
+
+          <div
+            style={{
+              color: "#cbd5e1",
+              lineHeight: 1.6,
+              fontSize: 16,
+            }}
+          >
+            A Home2Flight recomenda reduzir
+            dependência operacional antes da saída
+            para o aeroporto.
+          </div>
+        </section>
+
+        {/* TIMELINE */}
+
+        <section
+          style={{
+            position: "relative",
+            background:
+              "rgba(255,255,255,0.04)",
+            border:
+              "1px solid rgba(255,255,255,0.06)",
+            borderRadius: 38,
+            padding: 26,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 34,
+              letterSpacing: "-2px",
+              fontWeight: 950,
+              marginBottom: 30,
+            }}
+          >
+            Operational Journey
+          </div>
+
+          <div
+            style={{
+              position: "absolute",
+              left: 31,
+              top: 110,
+              bottom: 40,
+              width: 2,
+              background:
+                "linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.02))",
+            }}
+          />
 
           <div
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: 16,
+              gap: 22,
             }}
           >
             {timeline.map((step, index) => (
@@ -397,8 +477,10 @@ export default function Home() {
                 key={index}
                 style={{
                   display: "flex",
-                  gap: 14,
+                  gap: 18,
                   alignItems: "flex-start",
+                  position: "relative",
+                  zIndex: 2,
                 }}
               >
                 <div
@@ -407,7 +489,7 @@ export default function Home() {
                     minWidth: 12,
                     height: 12,
                     borderRadius: 999,
-                    marginTop: 8,
+                    marginTop: 10,
                     background:
                       step.category === "transport"
                         ? "#3b82f6"
@@ -416,6 +498,8 @@ export default function Home() {
                         : step.category === "security"
                         ? "#ef4444"
                         : "#22c55e",
+                    boxShadow:
+                      "0 0 18px rgba(255,255,255,0.3)",
                   }}
                 />
 
@@ -426,16 +510,17 @@ export default function Home() {
                       "rgba(255,255,255,0.04)",
                     border:
                       "1px solid rgba(255,255,255,0.05)",
-                    borderRadius: 24,
-                    padding: 18,
+                    borderRadius: 28,
+                    padding: 22,
+                    backdropFilter: "blur(14px)",
                   }}
                 >
                   <div
                     style={{
                       color: "#94a3b8",
                       fontSize: 13,
-                      marginBottom: 6,
-                      fontWeight: 700,
+                      fontWeight: 800,
+                      marginBottom: 8,
                     }}
                   >
                     {formatTime(
@@ -445,9 +530,11 @@ export default function Home() {
 
                   <div
                     style={{
-                      fontSize: 20,
-                      fontWeight: 900,
-                      marginBottom: 10,
+                      fontSize: 26,
+                      lineHeight: 1.1,
+                      fontWeight: 950,
+                      letterSpacing: "-1px",
+                      marginBottom: 14,
                     }}
                   >
                     {step.title}
@@ -456,8 +543,8 @@ export default function Home() {
                   <div
                     style={{
                       color: "#cbd5e1",
-                      lineHeight: 1.45,
-                      fontSize: 14,
+                      lineHeight: 1.6,
+                      fontSize: 15,
                     }}
                   >
                     {step.liveInsight}
