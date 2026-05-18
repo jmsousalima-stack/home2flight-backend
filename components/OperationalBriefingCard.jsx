@@ -1,75 +1,10 @@
 "use client";
 
-function buildBriefing(timelineData) {
-  const airportRisk =
-    timelineData?.airportIntelligence
-      ?.operationalIntelligence
-      ?.airportRisk;
-
-  const transportRisk =
-    timelineData?.routeIntelligence
-      ?.operationalProfile
-      ?.routeRiskLevel;
-
-  const checkedIn =
-    timelineData?.journey?.profile?.checkedIn;
-
-  const bags =
-    timelineData?.journey?.profile?.bags;
-
-  const passport =
-    timelineData?.journey?.profile?.flightType === "passport";
-
-  const fragments = [];
-
-  if (airportRisk === "high") {
-    fragments.push(
-      "A Home2Flight detetou pressão operacional elevada no aeroporto."
-    );
-  } else if (airportRisk === "medium") {
-    fragments.push(
-      "Existe variabilidade operacional moderada na zona aeroportuária."
-    );
-  } else {
-    fragments.push(
-      "O aeroporto encontra-se operacionalmente estável."
-    );
-  }
-
-  if (
-    transportRisk === "medium" ||
-    transportRisk === "high"
-  ) {
-    fragments.push(
-      "O trajeto até ao terminal está sob monitorização ativa."
-    );
-  }
-
-  if (!checkedIn) {
-    fragments.push(
-      "O check-in online ainda não foi confirmado."
-    );
-  }
-
-  if (bags) {
-    fragments.push(
-      "A jornada inclui bagagem de porão e margem adicional para bag drop."
-    );
-  }
-
-  if (passport) {
-    fragments.push(
-      "O voo exige controlo documental/fronteiriço antes da porta."
-    );
-  }
-
-  return fragments.join(" ");
-}
-
-function buildOperationalTone(score) {
+function getOperationalTone(score) {
   if (score >= 75) {
     return {
-      label: "Estável",
+      label: "Plano estável",
+      badge: "Margem normal",
       color: "#22c55e",
       glow: "rgba(34,197,94,0.35)",
     };
@@ -77,30 +12,78 @@ function buildOperationalTone(score) {
 
   if (score >= 50) {
     return {
-      label: "Sensível",
+      label: "Plano sensível",
+      badge: "Margem reforçada",
       color: "#f59e0b",
       glow: "rgba(245,158,11,0.35)",
     };
   }
 
   return {
-    label: "Conservadora",
+    label: "Plano com margem reforçada",
+    badge: "Estratégia conservadora",
     color: "#ef4444",
     glow: "rgba(239,68,68,0.35)",
   };
 }
 
-export default function OperationalBriefingCard({
-  timelineData,
-}) {
-  const reliability =
-    timelineData?.reliability?.score || 0;
+function buildBriefing(timelineData) {
+  const airportRisk =
+    timelineData?.airportIntelligence?.operationalIntelligence?.airportRisk;
 
-  const briefing =
-    buildBriefing(timelineData);
+  const transport =
+    timelineData?.journey?.transport;
 
-  const tone =
-    buildOperationalTone(reliability);
+  const checkedIn = timelineData?.journey?.profile?.checkedIn;
+  const bags = timelineData?.journey?.profile?.bags;
+  const passport = timelineData?.journey?.profile?.flightType === "passport";
+
+  const points = [];
+
+  if (airportRisk === "medium") {
+    points.push("aeroporto com variabilidade moderada");
+  }
+
+  if (airportRisk === "high") {
+    points.push("pressão operacional elevada no aeroporto");
+  }
+
+  if (transport === "public") {
+    points.push("dependência de transporte público");
+  }
+
+  if (!checkedIn) {
+    points.push("check-in online ainda por confirmar");
+  }
+
+  if (bags) {
+    points.push("bagagem de porão / bag drop");
+  }
+
+  if (passport) {
+    points.push("controlo de passaporte antes da porta");
+  }
+
+  if (points.length === 0) {
+    return "A jornada encontra-se operacionalmente estável. A Home2Flight mantém monitorização ativa até à partida.";
+  }
+
+  return `A Home2Flight recomenda uma margem reforçada porque identificou ${points.join(
+    ", "
+  )}.`;
+}
+
+export default function OperationalBriefingCard({ timelineData }) {
+  const reliability = timelineData?.reliability?.score || 0;
+
+  const confidence =
+    timelineData?.sources?.route?.confidenceScore ||
+    timelineData?.routeIntelligence?.reliability?.confidenceScore ||
+    timelineData?.airportIntelligence?.operationalIntelligence?.confidenceScore ||
+    58;
+
+  const tone = getOperationalTone(reliability);
+  const briefing = buildBriefing(timelineData);
 
   return (
     <section
@@ -111,10 +94,8 @@ export default function OperationalBriefingCard({
         padding: 24,
         background:
           "linear-gradient(180deg, rgba(19,27,60,0.96) 0%, rgba(8,15,40,0.98) 100%)",
-        border:
-          "1px solid rgba(255,255,255,0.08)",
-        boxShadow:
-          "0 24px 60px rgba(0,0,0,0.32)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        boxShadow: "0 24px 60px rgba(0,0,0,0.32)",
       }}
     >
       <div
@@ -131,17 +112,12 @@ export default function OperationalBriefingCard({
         }}
       />
 
-      <div
-        style={{
-          position: "relative",
-          zIndex: 2,
-        }}
-      >
+      <div style={{ position: "relative", zIndex: 2 }}>
         <div
           style={{
             display: "flex",
-            alignItems: "center",
             justifyContent: "space-between",
+            gap: 18,
             marginBottom: 20,
           }}
         >
@@ -179,30 +155,27 @@ export default function OperationalBriefingCard({
               <div
                 style={{
                   color: "#ffffff",
-                  fontSize: 15,
-                  fontWeight: 900,
+                  fontSize: 16,
+                  fontWeight: 950,
+                  lineHeight: 1.2,
                 }}
               >
-                Estratégia {tone.label}
+                {tone.label}
               </div>
             </div>
           </div>
 
-          <div
-            style={{
-              textAlign: "right",
-            }}
-          >
+          <div style={{ textAlign: "right", minWidth: 74 }}>
             <div
               style={{
                 color: "#93a4c8",
-                fontSize: 11,
-                fontWeight: 800,
+                fontSize: 10,
+                fontWeight: 900,
                 letterSpacing: 1,
-                marginBottom: 4,
+                marginBottom: 5,
               }}
             >
-              DATA CONFIDENCE
+              DATA
             </div>
 
             <div
@@ -213,9 +186,7 @@ export default function OperationalBriefingCard({
                 lineHeight: 1,
               }}
             >
-              {timelineData?.sources?.route
-                ?.confidenceScore || 58}
-              %
+              {confidence}%
             </div>
           </div>
         </div>
@@ -224,8 +195,8 @@ export default function OperationalBriefingCard({
           style={{
             color: "#ffffff",
             fontSize: 20,
-            lineHeight: 1.4,
-            fontWeight: 700,
+            lineHeight: 1.42,
+            fontWeight: 750,
             marginBottom: 20,
           }}
         >
@@ -234,10 +205,8 @@ export default function OperationalBriefingCard({
 
         <div
           style={{
-            background:
-              "rgba(255,255,255,0.04)",
-            border:
-              "1px solid rgba(255,255,255,0.06)",
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.06)",
             borderRadius: 22,
             padding: 18,
           }}
@@ -263,9 +232,8 @@ export default function OperationalBriefingCard({
               fontWeight: 600,
             }}
           >
-            A timeline mantém buffers conservadores
-            para reduzir exposição a variabilidade
-            operacional antes do embarque.
+            {tone.badge}. A timeline mantém buffers para reduzir risco antes do
+            embarque.
           </div>
         </div>
       </div>
