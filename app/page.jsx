@@ -10,15 +10,29 @@ const ENGINE_URL =
 
 function formatTime(value) {
   if (!value) return "--:--";
-
   const date = new Date(value);
-
   if (Number.isNaN(date.getTime())) return "--:--";
 
   return date.toLocaleTimeString("pt-PT", {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function getMinutesUntil(value) {
+  if (!value) return null;
+  const target = new Date(value);
+  if (Number.isNaN(target.getTime())) return null;
+  return Math.round((target.getTime() - Date.now()) / 60000);
+}
+
+function formatCountdown(minutes) {
+  if (minutes === null) return "A calcular";
+  if (minutes <= 0) return "Agora";
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}min`;
 }
 
 function getStepColor(category) {
@@ -46,7 +60,8 @@ function getStepColor(category) {
 function getOperationalTone(score) {
   if (score >= 75) {
     return {
-      label: "Estável",
+      label: "Plano estável",
+      short: "Estável",
       color: "#22c55e",
       glow: "rgba(34,197,94,0.35)",
     };
@@ -54,16 +69,64 @@ function getOperationalTone(score) {
 
   if (score >= 50) {
     return {
-      label: "Sensível",
+      label: "Plano sensível",
+      short: "Sensível",
       color: "#f59e0b",
       glow: "rgba(245,158,11,0.35)",
     };
   }
 
   return {
-    label: "Conservadora",
+    label: "Plano com margem reforçada",
+    short: "Reforçado",
     color: "#ef4444",
     glow: "rgba(239,68,68,0.35)",
+  };
+}
+
+function getMissionPhase(data) {
+  const minutesToLeave = getMinutesUntil(data?.decision?.leaveHomeTime);
+
+  if (minutesToLeave === null) {
+    return {
+      label: "Planning mode",
+      title: "A calcular missão",
+      description: "A Home2Flight está a preparar a timeline operacional.",
+    };
+  }
+
+  if (minutesToLeave > 180) {
+    return {
+      label: "Preparation mode",
+      title: "Missão em preparação",
+      description:
+        "A Home2Flight mantém monitorização e prepara a margem operacional antes da saída.",
+    };
+  }
+
+  if (minutesToLeave > 60) {
+    return {
+      label: "Pre-departure mode",
+      title: "Janela pré-saída ativa",
+      description:
+        "A app está a acompanhar os principais riscos antes da deslocação para o aeroporto.",
+    };
+  }
+
+  if (minutesToLeave > 0) {
+    return {
+      label: "Departure mode",
+      title: "Preparar saída",
+      description:
+        "A saída aproxima-se. Confirma check-in, documentos, transporte e margem operacional.",
+    };
+  }
+
+  return {
+    label: "Active journey mode",
+    title: "Jornada ativa",
+    description:
+      "A timeline entrou em modo operacional ativo. Segue o próximo passo recomendado.",
   };
 }
 
@@ -87,29 +150,30 @@ function getFlightLabel(data) {
 function getNextCriticalStep(data) {
   const timeline = data?.timeline || [];
 
-  const checkIn = timeline.find((item) => item.step === "checkin_bagdrop");
-  const leaveHome = timeline.find((item) => item.step === "leave_home");
+  const futureStep = timeline.find((step) => {
+    const minutes = getMinutesUntil(step.recommendedTime);
+    return minutes !== null && minutes >= 0;
+  });
 
-  if (checkIn && data?.journey?.profile?.checkedIn === false) {
-    return {
-      title: "Confirmar check-in online",
-      text: "Reduz dependência operacional antes da saída para o aeroporto.",
-      time: formatTime(checkIn.recommendedTime),
-    };
-  }
+  const fallback =
+    timeline.find((step) => step.step === "checkin_bagdrop") || timeline[0];
 
-  if (leaveHome) {
+  const step = futureStep || fallback;
+
+  if (!step) {
     return {
-      title: "Preparar saída",
-      text: "A Home2Flight está a monitorizar rota, aeroporto e margem operacional.",
-      time: formatTime(leaveHome.recommendedTime),
+      title: "Monitorização ativa",
+      text: "A Home2Flight está a acompanhar os sinais operacionais da jornada.",
+      time: "--:--",
     };
   }
 
   return {
-    title: "Monitorização ativa",
-    text: "A Home2Flight está a acompanhar os sinais operacionais da jornada.",
-    time: "--:--",
+    title: step.title,
+    text:
+      step.liveInsight ||
+      "A Home2Flight está a acompanhar os sinais operacionais da jornada.",
+    time: formatTime(step.recommendedTime),
   };
 }
 
@@ -157,20 +221,7 @@ export default function Home() {
           fontFamily: "Arial, sans-serif",
         }}
       >
-        <div
-          style={{
-            maxWidth: 420,
-            padding: 24,
-            borderRadius: 28,
-            background: "rgba(255,255,255,0.06)",
-            border: "1px solid rgba(255,255,255,0.1)",
-          }}
-        >
-          <h1 style={{ margin: "0 0 12px", fontSize: 28 }}>
-            Home2Flight Engine Error
-          </h1>
-          <p style={{ color: "#cbd5e1", lineHeight: 1.5 }}>{error}</p>
-        </div>
+        <div>{error}</div>
       </main>
     );
   }
@@ -194,7 +245,6 @@ export default function Home() {
   }
 
   const timeline = data?.timeline || [];
-  const nextStep = getNextCriticalStep(data);
   const reliabilityScore = data?.reliability?.score ?? 0;
   const confidenceScore =
     data?.airportIntelligence?.operationalIntelligence?.confidenceScore ??
@@ -202,6 +252,9 @@ export default function Home() {
     reliabilityScore;
 
   const tone = getOperationalTone(reliabilityScore);
+  const phase = getMissionPhase(data);
+  const nextStep = getNextCriticalStep(data);
+  const minutesToLeave = getMinutesUntil(data?.decision?.leaveHomeTime);
 
   return (
     <main
@@ -212,16 +265,9 @@ export default function Home() {
         color: "white",
         padding: "24px 16px 120px",
         fontFamily: "Arial, sans-serif",
-        overflow: "hidden",
       }}
     >
       <style>{`
-        @keyframes h2fPulse {
-          0% { transform: scale(1); opacity: 0.8; }
-          50% { transform: scale(1.8); opacity: 0.14; }
-          100% { transform: scale(1); opacity: 0.8; }
-        }
-
         @keyframes h2fBreath {
           0% { opacity: 0.62; transform: scale(1); }
           50% { opacity: 0.92; transform: scale(1.04); }
@@ -265,29 +311,6 @@ export default function Home() {
               animation: "h2fBreath 4.8s ease-in-out infinite",
             }}
           />
-
-          <div
-            style={{
-              position: "absolute",
-              top: 24,
-              right: 24,
-              width: 18,
-              height: 18,
-              borderRadius: 999,
-              background: tone.color,
-              boxShadow: `0 0 30px ${tone.color}`,
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                borderRadius: 999,
-                background: tone.color,
-                animation: "h2fPulse 2.2s ease-in-out infinite",
-              }}
-            />
-          </div>
 
           <div style={{ position: "relative", zIndex: 2 }}>
             <div
@@ -346,10 +369,11 @@ export default function Home() {
                   height: 8,
                   borderRadius: 999,
                   background: tone.color,
+                  boxShadow: `0 0 14px ${tone.color}`,
                 }}
               />
               <span style={{ fontWeight: 900, fontSize: 13 }}>
-                Estratégia {tone.label}
+                {tone.label}
               </span>
             </div>
 
@@ -420,82 +444,108 @@ export default function Home() {
 
         <section
           style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 14,
+            position: "relative",
+            overflow: "hidden",
+            borderRadius: 34,
+            padding: 24,
+            background:
+              "linear-gradient(180deg, rgba(16,24,52,0.98), rgba(7,14,34,0.98))",
+            border: "1px solid rgba(255,255,255,0.08)",
+            boxShadow: "0 28px 70px rgba(0,0,0,0.34)",
           }}
         >
-          {[
-            {
-              title: "Estratégia",
-              value: tone.label,
-              sub: "Plano operacional",
-            },
-            {
-              title: "Confiança dos dados",
-              value: `${confidenceScore}%`,
-              sub: "Modelo ativo",
-            },
-            {
-              title: "Aeroporto",
-              value:
-                data?.airportIntelligence?.operationalIntelligence
-                  ?.airportRisk === "medium"
-                  ? "Fluxo moderado"
-                  : "Monitorizado",
-              sub: getAirportLabel(data),
-            },
-            {
-              title: "Check-in",
-              value: data?.journey?.profile?.checkedIn
-                ? "Confirmado"
-                : "Por confirmar",
-              sub: data?.journey?.profile?.bags ? "Com bagagem" : "Sem bagagem",
-            },
-          ].map((item) => (
-            <div
-              key={item.title}
-              style={{
-                background: "rgba(255,255,255,0.055)",
-                border: "1px solid rgba(255,255,255,0.07)",
-                borderRadius: 28,
-                padding: 20,
-                backdropFilter: "blur(14px)",
-              }}
-            >
-              <div
-                style={{
-                  color: "#9fb0d1",
-                  fontSize: 13,
-                  marginBottom: 12,
-                  fontWeight: 800,
-                }}
-              >
-                {item.title}
-              </div>
+          <div
+            style={{
+              fontSize: 12,
+              letterSpacing: 3,
+              textTransform: "uppercase",
+              color: "#9fb0d1",
+              fontWeight: 950,
+              marginBottom: 16,
+            }}
+          >
+            Mission Status · {phase.label}
+          </div>
 
-              <div
-                style={{
-                  fontSize: 22,
-                  lineHeight: 1.1,
-                  fontWeight: 950,
-                  marginBottom: 8,
-                }}
-              >
-                {item.value}
-              </div>
+          <div
+            style={{
+              fontSize: 36,
+              lineHeight: 1,
+              fontWeight: 950,
+              letterSpacing: "-2px",
+              marginBottom: 12,
+            }}
+          >
+            {phase.title}
+          </div>
 
+          <div
+            style={{
+              color: "#cbd5e1",
+              fontSize: 16,
+              lineHeight: 1.5,
+              marginBottom: 22,
+            }}
+          >
+            {phase.description}
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr 1fr",
+              gap: 10,
+            }}
+          >
+            {[
+              {
+                title: "Até sair",
+                value: formatCountdown(minutesToLeave),
+              },
+              {
+                title: "Plano",
+                value: tone.short,
+              },
+              {
+                title: "Dados",
+                value: `${confidenceScore}%`,
+              },
+            ].map((item) => (
               <div
+                key={item.title}
                 style={{
-                  color: "#94a3b8",
-                  fontSize: 12,
-                  fontWeight: 700,
+                  background: "rgba(255,255,255,0.045)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  borderRadius: 20,
+                  padding: 14,
                 }}
               >
-                {item.sub}
+                <div
+                  style={{
+                    color: "#93a4c8",
+                    fontSize: 10,
+                    fontWeight: 900,
+                    marginBottom: 8,
+                    textTransform: "uppercase",
+                    letterSpacing: 1,
+                  }}
+                >
+                  {item.title}
+                </div>
+
+                <div
+                  style={{
+                    color: "#ffffff",
+                    fontSize: 15,
+                    lineHeight: 1.25,
+                    fontWeight: 900,
+                  }}
+                >
+                  {item.value}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </section>
 
         <OperationalBriefingCard timelineData={data} />
@@ -614,7 +664,6 @@ export default function Home() {
                     border: "1px solid rgba(255,255,255,0.06)",
                     borderRadius: 30,
                     padding: 22,
-                    backdropFilter: "blur(14px)",
                   }}
                 >
                   <div
