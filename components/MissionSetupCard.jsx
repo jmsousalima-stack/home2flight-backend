@@ -1,5 +1,17 @@
 "use client";
 
+const inputStyle = {
+  width: "100%",
+  boxSizing: "border-box",
+  borderRadius: 18,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.05)",
+  padding: "18px 16px",
+  color: "white",
+  fontSize: 16,
+  outline: "none",
+};
+
 export default function MissionSetupCard({
   mission,
   setMission,
@@ -70,32 +82,61 @@ export default function MissionSetupCard({
       >
         <input
           value={mission.flight}
-          onChange={(e) =>
-            update("flight", e.target.value.toUpperCase())
+          onChange={(event) =>
+            update("flight", event.target.value.toUpperCase())
           }
-          placeholder="Número do voo"
+          placeholder="Número do voo, ex: KL1578"
           style={inputStyle}
         />
 
         <input
           value={mission.origin}
-          onChange={(e) =>
-            update("origin", e.target.value)
-          }
+          onChange={(event) => update("origin", event.target.value)}
           placeholder="Origem da jornada"
           style={inputStyle}
         />
 
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 12,
+          }}
+        >
+          <input
+            value={mission.airport}
+            onChange={(event) =>
+              update("airport", event.target.value.toUpperCase())
+            }
+            placeholder="Aeroporto"
+            style={inputStyle}
+          />
+
+          <input
+            value={mission.terminal}
+            onChange={(event) => update("terminal", event.target.value)}
+            placeholder="Terminal"
+            style={inputStyle}
+          />
+        </div>
+
         <select
           value={mission.transport}
-          onChange={(e) =>
-            update("transport", e.target.value)
-          }
+          onChange={(event) => update("transport", event.target.value)}
           style={inputStyle}
         >
           <option value="car">Carro</option>
           <option value="uber">Uber / TVDE</option>
           <option value="public">Transportes públicos</option>
+        </select>
+
+        <select
+          value={mission.flightType}
+          onChange={(event) => update("flightType", event.target.value)}
+          style={inputStyle}
+        >
+          <option value="schengen">Schengen / sem passaporte</option>
+          <option value="passport">Com controlo de passaporte</option>
         </select>
 
         <div
@@ -106,31 +147,17 @@ export default function MissionSetupCard({
           }}
         >
           {[
-            {
-              key: "bags",
-              label: "Bagagem",
-            },
-            {
-              key: "kids",
-              label: "Crianças",
-            },
-            {
-              key: "checkedIn",
-              label: "Check-in online",
-            },
-            {
-              key: "fastTrack",
-              label: "Fast track",
-            },
+            { key: "bags", label: "Bagagem" },
+            { key: "kids", label: "Crianças" },
+            { key: "checkedIn", label: "Check-in online" },
+            { key: "fastTrack", label: "Fast track" },
+            { key: "priorityBoarding", label: "Embarque prioritário" },
+            { key: "useManualTime", label: "Hora manual" },
           ].map((item) => (
             <button
               key={item.key}
-              onClick={() =>
-                update(
-                  item.key,
-                  !mission[item.key]
-                )
-              }
+              type="button"
+              onClick={() => update(item.key, !mission[item.key])}
               style={{
                 borderRadius: 18,
                 padding: "16px 14px",
@@ -150,7 +177,17 @@ export default function MissionSetupCard({
           ))}
         </div>
 
+        {mission.useManualTime && (
+          <input
+            value={mission.departureTime}
+            onChange={(event) => update("departureTime", event.target.value)}
+            placeholder="Hora manual: 2026-05-20T16:40:00+01:00"
+            style={inputStyle}
+          />
+        )}
+
         <button
+          type="button"
           onClick={onGenerate}
           disabled={loading}
           style={{
@@ -158,31 +195,18 @@ export default function MissionSetupCard({
             border: "none",
             borderRadius: 22,
             padding: "18px 20px",
-            background:
-              "linear-gradient(135deg, #2563eb, #1d4ed8)",
+            background: loading
+              ? "rgba(37,99,235,0.45)"
+              : "linear-gradient(135deg, #2563eb, #1d4ed8)",
             color: "white",
             fontWeight: 900,
             fontSize: 16,
-            boxShadow:
-              "0 20px 50px rgba(37,99,235,0.35)",
+            boxShadow: "0 20px 50px rgba(37,99,235,0.35)",
           }}
         >
-          {loading
-            ? "A gerar missão..."
-            : "Generate Operational Plan"}
+          {loading ? "A gerar missão..." : "Generate Operational Plan"}
         </button>
       </div>
     </section>
   );
 }
-
-const inputStyle = {
-  width: "100%",
-  borderRadius: 18,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.05)",
-  padding: "18px 16px",
-  color: "white",
-  fontSize: 16,
-  outline: "none",
-};
