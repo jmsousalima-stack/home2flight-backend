@@ -1,15 +1,17 @@
+// /components/MissionSetupCard.jsx
 "use client";
 
 const inputStyle = {
   width: "100%",
   boxSizing: "border-box",
   borderRadius: 18,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.05)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.06)",
   padding: "18px 16px",
   color: "white",
   fontSize: 16,
   outline: "none",
+  appearance: "none",
 };
 
 export default function MissionSetupCard({
@@ -73,13 +75,7 @@ export default function MissionSetupCard({
         Introduz os detalhes da jornada para gerar uma timeline operacional personalizada.
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-        }}
-      >
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <input
           value={mission.flight}
           onChange={(event) =>
@@ -96,13 +92,7 @@ export default function MissionSetupCard({
           style={inputStyle}
         />
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 12,
-          }}
-        >
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <input
             value={mission.airport}
             onChange={(event) =>
@@ -139,13 +129,7 @@ export default function MissionSetupCard({
           <option value="passport">Com controlo de passaporte</option>
         </select>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 12,
-          }}
-        >
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {[
             { key: "bags", label: "Bagagem" },
             { key: "kids", label: "Crianças" },
@@ -179,9 +163,9 @@ export default function MissionSetupCard({
 
         {mission.useManualTime && (
           <input
+            type="datetime-local"
             value={mission.departureTime}
             onChange={(event) => update("departureTime", event.target.value)}
-            placeholder="Hora manual: 2026-05-20T16:40:00+01:00"
             style={inputStyle}
           />
         )}
