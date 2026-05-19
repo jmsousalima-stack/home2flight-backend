@@ -89,23 +89,6 @@ function getOperationalTone(score) {
   };
 }
 
-function getAirportLabel(data) {
-  return (
-    data?.journey?.airport ||
-    data?.airportIntelligence?.airport?.code ||
-    data?.flight?.route?.from?.code ||
-    "LIS"
-  );
-}
-
-function getTerminalLabel(data) {
-  return data?.journey?.terminal || data?.flight?.departure?.terminal || "1";
-}
-
-function getFlightLabel(data) {
-  return data?.flight?.number || data?.journey?.flight || "Flight";
-}
-
 function getMissionPhase(data) {
   const minutesToLeave = getMinutesUntil(data?.decision?.leaveHomeTime);
 
@@ -152,6 +135,23 @@ function getMissionPhase(data) {
   };
 }
 
+function getAirportLabel(data) {
+  return (
+    data?.journey?.airport ||
+    data?.airportIntelligence?.airport?.code ||
+    data?.flight?.route?.from?.code ||
+    "LIS"
+  );
+}
+
+function getTerminalLabel(data) {
+  return data?.journey?.terminal || data?.flight?.departure?.terminal || "1";
+}
+
+function getFlightLabel(data) {
+  return data?.flight?.number || data?.journey?.flight || "Flight";
+}
+
 function getNextCriticalStep(data) {
   const timeline = data?.timeline || [];
 
@@ -196,9 +196,12 @@ function buildEngineUrl(mission) {
     fastTrack: String(Boolean(mission.fastTrack)),
     priorityBoarding: String(Boolean(mission.priorityBoarding)),
     flightType: mission.flightType || "passport",
-    forceManualTime: "true",
-    departureTime: mission.departureTime || "2026-05-20T16:40:00+01:00",
   });
+
+  if (mission.useManualTime && mission.departureTime) {
+    params.set("forceManualTime", "true");
+    params.set("departureTime", mission.departureTime);
+  }
 
   return `/api/engines/journey-planning-engine?${params.toString()}`;
 }
@@ -216,6 +219,7 @@ export default function Home() {
     fastTrack: false,
     priorityBoarding: false,
     flightType: "passport",
+    useManualTime: false,
     departureTime: "2026-05-20T16:40:00+01:00",
   });
 
@@ -266,7 +270,9 @@ export default function Home() {
   const tone = getOperationalTone(reliabilityScore);
   const phase = data ? getMissionPhase(data) : null;
   const nextStep = data ? getNextCriticalStep(data) : null;
-  const minutesToLeave = data ? getMinutesUntil(data?.decision?.leaveHomeTime) : null;
+  const minutesToLeave = data
+    ? getMinutesUntil(data?.decision?.leaveHomeTime)
+    : null;
 
   return (
     <main
