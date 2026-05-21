@@ -1,18 +1,42 @@
 // /components/MissionSetupCard.jsx
+
 "use client";
 
 const inputStyle = {
   width: "100%",
   boxSizing: "border-box",
-  borderRadius: 18,
+  borderRadius: 16,
   border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.06)",
-  padding: "18px 16px",
+  background: "rgba(255,255,255,0.07)",
+  padding: "15px 14px",
   color: "white",
-  fontSize: 16,
+  fontSize: 15,
   outline: "none",
-  appearance: "none",
 };
+
+function ToggleButton({ active, label, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        borderRadius: 16,
+        padding: "13px 10px",
+        border: active
+          ? "1px solid rgba(34,197,94,0.55)"
+          : "1px solid rgba(255,255,255,0.10)",
+        background: active
+          ? "rgba(34,197,94,0.14)"
+          : "rgba(255,255,255,0.045)",
+        color: "white",
+        fontWeight: 850,
+        fontSize: 13,
+      }}
+    >
+      {label}
+    </button>
+  );
+}
 
 export default function MissionSetupCard({
   mission,
@@ -21,8 +45,8 @@ export default function MissionSetupCard({
   loading,
 }) {
   function update(field, value) {
-    setMission((prev) => ({
-      ...prev,
+    setMission((previous) => ({
+      ...previous,
       [field]: value,
     }));
   }
@@ -30,23 +54,23 @@ export default function MissionSetupCard({
   return (
     <section
       style={{
-        borderRadius: 36,
-        padding: 24,
+        borderRadius: 32,
+        padding: 22,
         background:
-          "linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04))",
+          "linear-gradient(180deg, rgba(255,255,255,0.105), rgba(255,255,255,0.04))",
         border: "1px solid rgba(255,255,255,0.08)",
-        boxShadow: "0 30px 80px rgba(0,0,0,0.35)",
+        boxShadow: "0 28px 70px rgba(0,0,0,0.34)",
         backdropFilter: "blur(20px)",
       }}
     >
       <div
         style={{
-          fontSize: 12,
+          fontSize: 11,
           letterSpacing: 3,
           textTransform: "uppercase",
           color: "#9fb0d1",
-          fontWeight: 900,
-          marginBottom: 18,
+          fontWeight: 950,
+          marginBottom: 12,
         }}
       >
         Create Mission
@@ -54,11 +78,11 @@ export default function MissionSetupCard({
 
       <div
         style={{
-          fontSize: 38,
+          fontSize: 34,
           lineHeight: 1,
           fontWeight: 950,
-          marginBottom: 14,
           letterSpacing: "-2px",
+          marginBottom: 10,
         }}
       >
         Preparar voo
@@ -67,32 +91,38 @@ export default function MissionSetupCard({
       <div
         style={{
           color: "#cbd5e1",
-          lineHeight: 1.5,
-          marginBottom: 28,
-          fontSize: 16,
+          fontSize: 15,
+          lineHeight: 1.45,
+          marginBottom: 22,
         }}
       >
-        Introduz os detalhes da jornada para gerar uma timeline operacional personalizada.
+        Cria uma timeline operacional personalizada para chegares ao embarque
+        com margem.
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <input
-          value={mission.flight}
-          onChange={(event) =>
-            update("flight", event.target.value.toUpperCase())
-          }
-          placeholder="Número do voo, ex: KL1578"
-          style={inputStyle}
-        />
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+        }}
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 10,
+          }}
+        >
+          <input
+            value={mission.flight}
+            onChange={(event) =>
+              update("flight", event.target.value.toUpperCase())
+            }
+            placeholder="Voo"
+            style={inputStyle}
+          />
 
-        <input
-          value={mission.origin}
-          onChange={(event) => update("origin", event.target.value)}
-          placeholder="Origem da jornada"
-          style={inputStyle}
-        />
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <input
             value={mission.airport}
             onChange={(event) =>
@@ -101,24 +131,39 @@ export default function MissionSetupCard({
             placeholder="Aeroporto"
             style={inputStyle}
           />
+        </div>
 
+        <input
+          value={mission.origin}
+          onChange={(event) => update("origin", event.target.value)}
+          placeholder="Origem da jornada"
+          style={inputStyle}
+        />
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 10,
+          }}
+        >
           <input
             value={mission.terminal}
             onChange={(event) => update("terminal", event.target.value)}
             placeholder="Terminal"
             style={inputStyle}
           />
-        </div>
 
-        <select
-          value={mission.transport}
-          onChange={(event) => update("transport", event.target.value)}
-          style={inputStyle}
-        >
-          <option value="car">Carro</option>
-          <option value="uber">Uber / TVDE</option>
-          <option value="public">Transportes públicos</option>
-        </select>
+          <select
+            value={mission.transport}
+            onChange={(event) => update("transport", event.target.value)}
+            style={inputStyle}
+          >
+            <option value="car">Carro</option>
+            <option value="uber">Uber / TVDE</option>
+            <option value="public">Transportes públicos</option>
+          </select>
+        </div>
 
         <select
           value={mission.flightType}
@@ -129,36 +174,50 @@ export default function MissionSetupCard({
           <option value="passport">Com controlo de passaporte</option>
         </select>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          {[
-            { key: "bags", label: "Bagagem" },
-            { key: "kids", label: "Crianças" },
-            { key: "checkedIn", label: "Check-in online" },
-            { key: "fastTrack", label: "Fast track" },
-            { key: "priorityBoarding", label: "Embarque prioritário" },
-            { key: "useManualTime", label: "Hora manual" },
-          ].map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => update(item.key, !mission[item.key])}
-              style={{
-                borderRadius: 18,
-                padding: "16px 14px",
-                border: mission[item.key]
-                  ? "1px solid rgba(34,197,94,0.45)"
-                  : "1px solid rgba(255,255,255,0.08)",
-                background: mission[item.key]
-                  ? "rgba(34,197,94,0.12)"
-                  : "rgba(255,255,255,0.04)",
-                color: "white",
-                fontWeight: 800,
-                fontSize: 14,
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 10,
+          }}
+        >
+          <ToggleButton
+            label="Bagagem"
+            active={mission.bags}
+            onClick={() => update("bags", !mission.bags)}
+          />
+
+          <ToggleButton
+            label="Crianças"
+            active={mission.kids}
+            onClick={() => update("kids", !mission.kids)}
+          />
+
+          <ToggleButton
+            label="Check-in online"
+            active={mission.checkedIn}
+            onClick={() => update("checkedIn", !mission.checkedIn)}
+          />
+
+          <ToggleButton
+            label="Fast track"
+            active={mission.fastTrack}
+            onClick={() => update("fastTrack", !mission.fastTrack)}
+          />
+
+          <ToggleButton
+            label="Embarque prioritário"
+            active={mission.priorityBoarding}
+            onClick={() =>
+              update("priorityBoarding", !mission.priorityBoarding)
+            }
+          />
+
+          <ToggleButton
+            label="Hora manual"
+            active={mission.useManualTime}
+            onClick={() => update("useManualTime", !mission.useManualTime)}
+          />
         </div>
 
         {mission.useManualTime && (
@@ -175,16 +234,16 @@ export default function MissionSetupCard({
           onClick={onGenerate}
           disabled={loading}
           style={{
-            marginTop: 10,
+            marginTop: 8,
             border: "none",
-            borderRadius: 22,
-            padding: "18px 20px",
+            borderRadius: 20,
+            padding: "17px 20px",
             background: loading
               ? "rgba(37,99,235,0.45)"
               : "linear-gradient(135deg, #2563eb, #1d4ed8)",
             color: "white",
-            fontWeight: 900,
-            fontSize: 16,
+            fontWeight: 950,
+            fontSize: 15,
             boxShadow: "0 20px 50px rgba(37,99,235,0.35)",
           }}
         >
