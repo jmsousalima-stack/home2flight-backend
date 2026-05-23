@@ -145,7 +145,7 @@ function severityFromRisk(risk) {
   return "medium";
 }
 
-function buildOperationalSignals({
+function buildInternalOperationalSignals({
   departureResolution,
   flightEngine,
   airportEngine,
@@ -172,8 +172,7 @@ function buildOperationalSignals({
         flightEngine?.reliability?.score ||
         82,
       sourceType:
-        flightEngine?.reliability?.sourceType ||
-        "aviationstack_live",
+        flightEngine?.reliability?.sourceType || "aviationstack_live",
       freshness: "live",
       affects: ["flight", "departure_time"],
       extraBufferMinutes: 0,
@@ -198,8 +197,7 @@ function buildOperationalSignals({
   }
 
   const airportRisk =
-    airportEngine?.operationalIntelligence?.airportRisk ||
-    "medium";
+    airportEngine?.operationalIntelligence?.airportRisk || "medium";
 
   signals.push({
     id: "airport_operational_risk",
@@ -216,10 +214,9 @@ function buildOperationalSignals({
     sourceType:
       airportEngine?.operationalIntelligence?.sourceType ||
       "structured_internal_operational_model",
-    freshness:
-      airportEngine?.operationalIntelligence?.liveDataActive
-        ? "live"
-        : "profile",
+    freshness: airportEngine?.operationalIntelligence?.liveDataActive
+      ? "live"
+      : "profile",
     affects: ["airport", "security", "terminal_access"],
     extraBufferMinutes:
       airportRisk === "high" ? 20 : airportRisk === "medium" ? 10 : 0,
@@ -249,8 +246,7 @@ function buildOperationalSignals({
     sourceType:
       routeEngine?.reliability?.sourceType ||
       "google_maps_route_estimate",
-    freshness:
-      routeEngine?.reliability?.liveDataActive ? "live" : "cached",
+    freshness: routeEngine?.reliability?.liveDataActive ? "live" : "cached",
     affects: ["route", "airport_access"],
     extraBufferMinutes:
       routeEngine?.route?.dynamicBufferMinutes ||
@@ -260,22 +256,6 @@ function buildOperationalSignals({
       "Estimativa de trajeto considerada no cálculo.",
     limitations: routeEngine?.reliability?.limitations || [],
   });
-
-  if (transport === "public") {
-    signals.push({
-      id: "public_transport_dependency",
-      type: "public_transport",
-      title: "Dependência de transporte público",
-      severity: "medium",
-      confidenceScore: 58,
-      sourceType: "internal_airport_profile",
-      freshness: "profile",
-      affects: ["public_transport", "airport_access", "leave_home_time"],
-      extraBufferMinutes: 10,
-      reasoning:
-        "Transportes públicos apresentam maior variabilidade operacional e exigem margem adicional.",
-    });
-  }
 
   const eventRisk =
     eventEngine?.eventIntelligence?.eventRisk || "medium";
@@ -290,15 +270,13 @@ function buildOperationalSignals({
         ? "Eventos/disrupções sob monitorização"
         : "Sem disrupção relevante detetada",
     severity: severityFromRisk(eventRisk),
-    confidenceScore:
-      eventEngine?.eventIntelligence?.confidenceScore || 50,
+    confidenceScore: eventEngine?.eventIntelligence?.confidenceScore || 50,
     sourceType:
       eventEngine?.eventIntelligence?.sourceType ||
       "internal_event_profile",
-    freshness:
-      eventEngine?.eventIntelligence?.liveDataActive
-        ? "live"
-        : "profile",
+    freshness: eventEngine?.eventIntelligence?.liveDataActive
+      ? "live"
+      : "profile",
     affects: ["route", "airport_access", "overall_reliability"],
     extraBufferMinutes:
       eventEngine?.eventIntelligence?.totalExtraBufferMinutes || 0,
@@ -437,14 +415,9 @@ function buildReliabilityFromArbitration({
     };
   }
 
-  const riskScore =
-    arbitration.aggregation.operationalRiskScore || 50;
-
-  const confidenceScore =
-    arbitration.aggregation.confidenceScore || 50;
-
-  const liveBonus =
-    arbitration.aggregation.liveSignalCount > 0 ? 4 : -4;
+  const riskScore = arbitration.aggregation.operationalRiskScore || 50;
+  const confidenceScore = arbitration.aggregation.confidenceScore || 50;
+  const liveBonus = arbitration.aggregation.liveSignalCount > 0 ? 4 : -4;
 
   const score = Math.max(
     0,
@@ -456,10 +429,8 @@ function buildReliabilityFromArbitration({
 
   return {
     score,
-    trustLevel:
-      score >= 75 ? "high" : score >= 50 ? "medium" : "low",
-    readiness:
-      score >= 75 ? "ready" : score >= 50 ? "sensitive" : "fragile",
+    trustLevel: score >= 75 ? "high" : score >= 50 ? "medium" : "low",
+    readiness: score >= 75 ? "ready" : score >= 50 ? "sensitive" : "fragile",
     arbitration: arbitration.aggregation,
     adjustments:
       arbitration.recommendations?.map((item) => ({
@@ -521,6 +492,7 @@ export default async function handler(req, res) {
   const airline = String(req.query.airline || flight.slice(0, 2)).toUpperCase();
   const terminal = String(req.query.terminal || "1");
   const transport = String(req.query.transport || "public").toLowerCase();
+  const weather = String(req.query.weather || "normal").toLowerCase();
 
   const bags = parseBoolean(req.query.bags, true);
   const kids = parseBoolean(req.query.kids, false);
@@ -562,16 +534,28 @@ export default async function handler(req, res) {
     `&airport=${encodeURIComponent(airport)}` +
     `&mode=${encodeURIComponent(transport)}`;
 
+  const externalSignalsUrl =
+    `${BASE_URL}/api/engines/external-operational-signals-engine` +
+    `?airport=${encodeURIComponent(airport)}` +
+    `&mode=${encodeURIComponent(transport)}` +
+    `&weather=${encodeURIComponent(weather)}`;
+
   const arbitrationUrl =
     `${BASE_URL}/api/engines/reliability-arbitration-engine`;
 
-  const [flightEngine, airportEngine, routeEngine, eventEngine] =
-    await Promise.all([
-      fetchJson(flightUrl),
-      fetchJson(airportUrl),
-      fetchJson(routeUrl),
-      fetchJson(eventUrl),
-    ]);
+  const [
+    flightEngine,
+    airportEngine,
+    routeEngine,
+    eventEngine,
+    externalSignalsEngine,
+  ] = await Promise.all([
+    fetchJson(flightUrl),
+    fetchJson(airportUrl),
+    fetchJson(routeUrl),
+    fetchJson(eventUrl),
+    fetchJson(externalSignalsUrl),
+  ]);
 
   const departureResolution = getFlightDepartureTime({
     flightEngine,
@@ -582,7 +566,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: false,
       engine: "Home2Flight Journey Planning Engine",
-      version: "1.4.0-arbitration-integrated",
+      version: "1.5.0-external-signals-integrated",
       error:
         "Flight departure time unavailable. Enable manual time or use a flight with available live data.",
       diagnostics: {
@@ -598,7 +582,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: false,
       engine: "Home2Flight Journey Planning Engine",
-      version: "1.4.0-arbitration-integrated",
+      version: "1.5.0-external-signals-integrated",
       error: "Invalid departure time.",
     });
   }
@@ -617,7 +601,7 @@ export default async function handler(req, res) {
   const routeInfo = routeEngine?.route || {};
   const eventInfo = eventEngine?.eventIntelligence || {};
 
-  const operationalSignals = buildOperationalSignals({
+  const internalSignals = buildInternalOperationalSignals({
     departureResolution,
     flightEngine,
     airportEngine,
@@ -631,6 +615,10 @@ export default async function handler(req, res) {
     transport,
     flightType,
   });
+
+  const externalSignals = externalSignalsEngine?.signals || [];
+
+  const operationalSignals = [...internalSignals, ...externalSignals];
 
   const arbitration = await postJson(arbitrationUrl, {
     signals: operationalSignals,
@@ -666,8 +654,10 @@ export default async function handler(req, res) {
   const arbitrationBuffer =
     arbitration?.aggregation?.extraBufferMinutes || 0;
 
-  const eventBuffer =
-    Math.max(eventInfo.totalExtraBufferMinutes || 0, arbitrationBuffer);
+  const eventBuffer = Math.max(
+    eventInfo.totalExtraBufferMinutes || 0,
+    arbitrationBuffer
+  );
 
   const routeBuffer = baseRouteBuffer;
 
@@ -675,11 +665,9 @@ export default async function handler(req, res) {
     ? 10
     : airportInfo.estimatedSecurityMinutes || 20;
 
-  const walkingMinutes =
-    airportInfo.estimatedWalkingMinutes || 12;
+  const walkingMinutes = airportInfo.estimatedWalkingMinutes || 12;
 
-  const passportMinutes =
-    flightType === "passport" ? 12 : 0;
+  const passportMinutes = flightType === "passport" ? 12 : 0;
 
   const checkInMinutes = checkedIn
     ? bags
@@ -748,7 +736,7 @@ export default async function handler(req, res) {
   return res.status(200).json({
     success: true,
     engine: "Home2Flight Journey Planning Engine",
-    version: "1.4.0-arbitration-integrated",
+    version: "1.5.0-external-signals-integrated",
     generatedAt: new Date().toISOString(),
 
     journey: {
@@ -758,6 +746,7 @@ export default async function handler(req, res) {
       airline,
       terminal,
       transport,
+      weather,
       profile: {
         bags,
         kids,
@@ -838,6 +827,8 @@ export default async function handler(req, res) {
 
     operationalSignals,
 
+    externalOperationalSignals: externalSignalsEngine,
+
     flight: flightData,
 
     flightIntelligence:
@@ -862,6 +853,7 @@ export default async function handler(req, res) {
       airport: airportInfo,
       route: routeEngine?.reliability || null,
       events: eventInfo,
+      externalSignals: externalSignalsEngine?.summary || null,
       arbitration: arbitration?.aggregation || null,
     },
 
@@ -874,12 +866,13 @@ export default async function handler(req, res) {
         confidenceScore: reliability.score,
         trustLevel: reliability.trustLevel,
         status: "buffer",
-        source: "Journey Planning Engine + Reliability Arbitration",
+        source:
+          "Journey Planning Engine + Reliability Arbitration + External Signals",
         buffer: `+${routeBuffer + eventBuffer} min`,
         liveInsight:
           "Hora recomendada para iniciar a jornada até ao aeroporto.",
         reasoning:
-          "Calculado a partir da hora de partida, rota, perfil do passageiro, sinais operacionais e arbitragem de fiabilidade.",
+          "Calculado a partir da hora de partida, rota, perfil do passageiro, sinais externos e arbitragem de fiabilidade.",
         operationalSignals,
       },
       {
@@ -890,7 +883,7 @@ export default async function handler(req, res) {
         confidenceScore: airportInfo.confidenceScore || 55,
         trustLevel: "medium",
         status: "buffer",
-        source: "Airport Intelligence Engine",
+        source: "Airport Intelligence Engine + External Signals",
         liveInsight:
           airportEngine?.layers?.airportProfile?.reasoning?.[0] ||
           "Chegada ao aeroporto calculada com margem conservadora.",
@@ -898,7 +891,9 @@ export default async function handler(req, res) {
           "Inclui margem antes dos passos críticos: check-in, segurança, controlo documental e porta.",
         operationalSignals: operationalSignals.filter((signal) =>
           signal.affects?.some((item) =>
-            ["airport", "security", "terminal_access"].includes(item)
+            ["airport", "security", "terminal_access", "airport_access"].includes(
+              item
+            )
           )
         ),
       },
@@ -933,13 +928,13 @@ export default async function handler(req, res) {
         confidenceScore: 60,
         trustLevel: "medium",
         status: "buffer",
-        source: "Airport Intelligence Engine",
+        source: "Airport Intelligence Engine + External Signals",
         buffer: `${securityMinutes} min`,
         liveInsight: fastTrack
           ? "Fast track ativo. Tempo de segurança reduzido."
           : "Segurança é uma das maiores fontes de variabilidade aeroportuária.",
         reasoning:
-          "Tempo estimado com base no perfil do aeroporto, terminal, opção fast track e sinais operacionais.",
+          "Tempo estimado com base no perfil do aeroporto, terminal, opção fast track e sinais externos.",
         operationalSignals: operationalSignals.filter((signal) =>
           signal.affects?.includes("security")
         ),
@@ -958,8 +953,7 @@ export default async function handler(req, res) {
           flightType === "passport"
             ? "Voo com controlo de fronteira/passaporte considerado."
             : "Sem controlo de passaporte adicional nesta jornada.",
-        reasoning:
-          "Tempo ajustado ao tipo de voo selecionado.",
+        reasoning: "Tempo ajustado ao tipo de voo selecionado.",
         operationalSignals: operationalSignals.filter((signal) =>
           signal.affects?.includes("passport_control")
         ),
@@ -1014,8 +1008,7 @@ export default async function handler(req, res) {
         source: departureResolution.liveFlightUsed
           ? "Flight Status Engine"
           : "Manual fallback",
-        liveInsight:
-          "Hora usada como âncora da timeline operacional.",
+        liveInsight: "Hora usada como âncora da timeline operacional.",
         reasoning:
           "Todos os passos são calculados de trás para a frente a partir da hora prevista/estimada de partida.",
         operationalSignals: operationalSignals.filter((signal) =>
@@ -1028,6 +1021,7 @@ export default async function handler(req, res) {
       usedLiveFlightData: departureResolution.liveFlightUsed,
       departureSource: departureResolution.source,
       arbitrationSuccess: Boolean(arbitration?.success),
+      externalSignalsSuccess: Boolean(externalSignalsEngine?.success),
       airportEngineSuccess: Boolean(airportEngine?.success),
       routeEngineSuccess: Boolean(routeEngine?.success),
       eventEngineSuccess: Boolean(eventEngine?.success),
@@ -1036,6 +1030,7 @@ export default async function handler(req, res) {
         airportUrl,
         routeUrl,
         eventUrl,
+        externalSignalsUrl,
         arbitrationUrl,
       },
     },
