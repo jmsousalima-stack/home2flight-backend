@@ -63,8 +63,7 @@ function getFlightDepartureTime({ flightEngine, manualDepartureTime }) {
   const flightData = flightEngine?.flight;
 
   const liveDeparture =
-    flightData?.departure?.estimated ||
-    flightData?.departure?.scheduled;
+    flightData?.departure?.estimated || flightData?.departure?.scheduled;
 
   if (liveDeparture) {
     return {
@@ -244,8 +243,7 @@ function buildInternalOperationalSignals({
       routeEngine?.reliability?.score ||
       70,
     sourceType:
-      routeEngine?.reliability?.sourceType ||
-      "google_maps_route_estimate",
+      routeEngine?.reliability?.sourceType || "google_maps_route_estimate",
     freshness: routeEngine?.reliability?.liveDataActive ? "live" : "cached",
     affects: ["route", "airport_access"],
     extraBufferMinutes:
@@ -272,8 +270,7 @@ function buildInternalOperationalSignals({
     severity: severityFromRisk(eventRisk),
     confidenceScore: eventEngine?.eventIntelligence?.confidenceScore || 50,
     sourceType:
-      eventEngine?.eventIntelligence?.sourceType ||
-      "internal_event_profile",
+      eventEngine?.eventIntelligence?.sourceType || "internal_event_profile",
     freshness: eventEngine?.eventIntelligence?.liveDataActive
       ? "live"
       : "profile",
@@ -387,29 +384,20 @@ function buildInternalOperationalSignals({
 
 function buildReliabilityFromArbitration({
   arbitration,
-  fallbackReliabilityScore,
+  bufferGovernance,
+  usedLiveFlightData,
 }) {
   if (!arbitration?.success || !arbitration?.aggregation) {
     return {
-      score: fallbackReliabilityScore,
-      trustLevel:
-        fallbackReliabilityScore >= 75
-          ? "high"
-          : fallbackReliabilityScore >= 50
-          ? "medium"
-          : "low",
-      readiness:
-        fallbackReliabilityScore >= 75
-          ? "ready"
-          : fallbackReliabilityScore >= 50
-          ? "sensitive"
-          : "fragile",
+      score: 50,
+      trustLevel: "medium",
+      readiness: "sensitive",
       adjustments: [
         {
           factor: "arbitration_unavailable",
           impact: 0,
           reason:
-            "Motor de arbitragem indisponível. Aplicado score fallback.",
+            "Motor de arbitragem indisponível. Aplicada fiabilidade neutra.",
         },
       ],
     };
@@ -417,21 +405,25 @@ function buildReliabilityFromArbitration({
 
   const riskScore = arbitration.aggregation.operationalRiskScore || 50;
   const confidenceScore = arbitration.aggregation.confidenceScore || 50;
-  const liveBonus = arbitration.aggregation.liveSignalCount > 0 ? 4 : -4;
+  const governedBuffer =
+    bufferGovernance?.summary?.totalBufferMinutes || 0;
 
-  const score = Math.max(
-    0,
-    Math.min(
-      95,
-      Math.round(100 - riskScore * 0.75 + confidenceScore * 0.18 + liveBonus)
-    )
+  let score = Math.round(
+    82 - riskScore * 0.45 + confidenceScore * 0.22
   );
+
+  if (!usedLiveFlightData) score -= 12;
+  if (governedBuffer > 70) score -= 8;
+  if (governedBuffer > 95) score -= 14;
+
+  score = Math.max(0, Math.min(95, score));
 
   return {
     score,
     trustLevel: score >= 75 ? "high" : score >= 50 ? "medium" : "low",
     readiness: score >= 75 ? "ready" : score >= 50 ? "sensitive" : "fragile",
     arbitration: arbitration.aggregation,
+    bufferGovernance: bufferGovernance?.summary || null,
     adjustments:
       arbitration.recommendations?.map((item) => ({
         factor: item.type,
@@ -439,50 +431,6 @@ function buildReliabilityFromArbitration({
         reason: item.reasoning,
       })) || [],
   };
-}
-
-function calculateFallbackReliability({
-  usedLiveFlightData,
-  airportEngine,
-  routeEngine,
-  eventEngine,
-  checkedIn,
-  kids,
-  transport,
-  bags,
-  fastTrack,
-  priorityBoarding,
-}) {
-  let score = 82;
-
-  if (!usedLiveFlightData) score -= 18;
-
-  const airportRisk =
-    airportEngine?.operationalIntelligence?.airportRisk || "medium";
-
-  if (airportRisk === "medium") score -= 12;
-  if (airportRisk === "high") score -= 20;
-
-  const routeRisk =
-    routeEngine?.operationalProfile?.routeRiskLevel || "low";
-
-  if (routeRisk === "medium") score -= 8;
-  if (routeRisk === "high") score -= 15;
-
-  const eventRisk =
-    eventEngine?.eventIntelligence?.eventRisk || "medium";
-
-  if (eventRisk === "medium") score -= 8;
-  if (eventRisk === "high") score -= 15;
-
-  if (!checkedIn) score -= 5;
-  if (kids) score -= 5;
-  if (bags) score -= 4;
-  if (transport === "public") score -= 5;
-  if (fastTrack) score += 4;
-  if (priorityBoarding) score += 2;
-
-  return Math.max(0, Math.min(95, score));
 }
 
 export default async function handler(req, res) {
@@ -502,6 +450,7 @@ export default async function handler(req, res) {
 
   const flightType = String(req.query.flightType || "passport");
   const forceManualTime = parseBoolean(req.query.forceManualTime, false);
+
   const manualDepartureTime = forceManualTime
     ? String(req.query.departureTime || "")
     : null;
@@ -543,6 +492,9 @@ export default async function handler(req, res) {
   const arbitrationUrl =
     `${BASE_URL}/api/engines/reliability-arbitration-engine`;
 
+  const bufferGovernanceUrl =
+    `${BASE_URL}/api/engines/buffer-governance-engine`;
+
   const [
     flightEngine,
     airportEngine,
@@ -566,13 +518,9 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: false,
       engine: "Home2Flight Journey Planning Engine",
-      version: "1.5.0-external-signals-integrated",
+      version: "1.6.0-buffer-governance-integrated",
       error:
         "Flight departure time unavailable. Enable manual time or use a flight with available live data.",
-      diagnostics: {
-        flightEngineAvailable: Boolean(flightEngine?.success),
-        flightUrl,
-      },
     });
   }
 
@@ -582,7 +530,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: false,
       engine: "Home2Flight Journey Planning Engine",
-      version: "1.5.0-external-signals-integrated",
+      version: "1.6.0-buffer-governance-integrated",
       error: "Invalid departure time.",
     });
   }
@@ -617,49 +565,56 @@ export default async function handler(req, res) {
   });
 
   const externalSignals = externalSignalsEngine?.signals || [];
-
   const operationalSignals = [...internalSignals, ...externalSignals];
 
   const arbitration = await postJson(arbitrationUrl, {
     signals: operationalSignals,
   });
 
-  const fallbackReliabilityScore = calculateFallbackReliability({
-    usedLiveFlightData: departureResolution.liveFlightUsed,
-    airportEngine,
-    routeEngine,
-    eventEngine,
-    checkedIn,
-    kids,
-    transport,
-    bags,
-    fastTrack,
-    priorityBoarding,
+  const bufferGovernance = await postJson(bufferGovernanceUrl, {
+    signals: operationalSignals,
+    profile: {
+      bags,
+      kids,
+      checkedIn,
+      fastTrack,
+      priorityBoarding,
+      flightType,
+      transport,
+    },
   });
 
   const reliability = buildReliabilityFromArbitration({
     arbitration,
-    fallbackReliabilityScore,
+    bufferGovernance,
+    usedLiveFlightData: departureResolution.liveFlightUsed,
   });
 
   const baseRouteMinutes =
-    routeInfo.liveTrafficDurationMinutes ||
-    routeInfo.baseDurationMinutes ||
-    30;
+    routeInfo.liveTrafficDurationMinutes || routeInfo.baseDurationMinutes || 30;
 
   const baseRouteBuffer =
     routeInfo.dynamicBufferMinutes ??
     (transport === "public" ? 25 : transport === "uber" ? 18 : 15);
 
-  const arbitrationBuffer =
-    arbitration?.aggregation?.extraBufferMinutes || 0;
+  const governedRouteBuffer =
+    bufferGovernance?.domains?.route?.bufferMinutes || 0;
 
-  const eventBuffer = Math.max(
-    eventInfo.totalExtraBufferMinutes || 0,
-    arbitrationBuffer
+  const governedAirportBuffer =
+    bufferGovernance?.domains?.airport?.bufferMinutes || 0;
+
+  const governedGateBuffer =
+    bufferGovernance?.domains?.gate?.bufferMinutes || 0;
+
+  const governedGeneralBuffer =
+    bufferGovernance?.domains?.general?.bufferMinutes || 0;
+
+  const eventBuffer = Math.min(
+    70,
+    governedRouteBuffer + governedGeneralBuffer
   );
 
-  const routeBuffer = baseRouteBuffer;
+  const routeBuffer = Math.max(baseRouteBuffer, governedRouteBuffer);
 
   const securityMinutes = fastTrack
     ? 10
@@ -669,21 +624,17 @@ export default async function handler(req, res) {
 
   const passportMinutes = flightType === "passport" ? 12 : 0;
 
-  const checkInMinutes = checkedIn
-    ? bags
-      ? 12
-      : 0
-    : bags
-    ? 25
-    : 15;
+  const checkInMinutes = checkedIn ? (bags ? 12 : 0) : bags ? 25 : 15;
 
   const kidsExtraMinutes = kids ? 12 : 0;
 
-  const airportEntryBuffer = 10 + kidsExtraMinutes;
+  const airportEntryBuffer =
+    10 + kidsExtraMinutes + Math.min(governedAirportBuffer, 25);
 
   const boardingBeforeDepartureMinutes = priorityBoarding ? 22 : 28;
 
-  const gateReadyBuffer = priorityBoarding ? 6 : 12;
+  const gateReadyBuffer =
+    (priorityBoarding ? 6 : 12) + Math.min(governedGateBuffer, 10);
 
   const boardingDate = subtractMinutes(
     departureDate,
@@ -721,10 +672,7 @@ export default async function handler(req, res) {
     boardingBeforeDepartureMinutes;
 
   const totalBeforeDeparture =
-    totalAirportFlow +
-    baseRouteMinutes +
-    routeBuffer +
-    eventBuffer;
+    totalAirportFlow + baseRouteMinutes + routeBuffer + eventBuffer;
 
   const operationalStatus =
     reliability.score >= 70
@@ -736,7 +684,7 @@ export default async function handler(req, res) {
   return res.status(200).json({
     success: true,
     engine: "Home2Flight Journey Planning Engine",
-    version: "1.5.0-external-signals-integrated",
+    version: "1.6.0-buffer-governance-integrated",
     generatedAt: new Date().toISOString(),
 
     journey: {
@@ -813,17 +761,23 @@ export default async function handler(req, res) {
       airportEntryBuffer,
       routeBuffer,
       eventBuffer,
-      arbitrationBuffer,
-      kidsExtraMinutes,
+      governedRouteBuffer,
+      governedAirportBuffer,
+      governedGateBuffer,
+      governedGeneralBuffer,
       totalAirportFlow,
       totalBeforeDeparture,
       gateReadyBuffer,
       boardingBeforeDepartureMinutes,
+      bufferGovernanceTotal:
+        bufferGovernance?.summary?.totalBufferMinutes || null,
     },
 
     reliability,
 
     reliabilityArbitration: arbitration,
+
+    bufferGovernance,
 
     operationalSignals,
 
@@ -855,6 +809,7 @@ export default async function handler(req, res) {
       events: eventInfo,
       externalSignals: externalSignalsEngine?.summary || null,
       arbitration: arbitration?.aggregation || null,
+      bufferGovernance: bufferGovernance?.summary || null,
     },
 
     timeline: [
@@ -867,12 +822,12 @@ export default async function handler(req, res) {
         trustLevel: reliability.trustLevel,
         status: "buffer",
         source:
-          "Journey Planning Engine + Reliability Arbitration + External Signals",
+          "Journey Planning Engine + Reliability Arbitration + Buffer Governance",
         buffer: `+${routeBuffer + eventBuffer} min`,
         liveInsight:
           "Hora recomendada para iniciar a jornada até ao aeroporto.",
         reasoning:
-          "Calculado a partir da hora de partida, rota, perfil do passageiro, sinais externos e arbitragem de fiabilidade.",
+          "Calculado a partir da hora de partida, rota, perfil do passageiro, sinais externos, arbitragem e governação de buffers.",
         operationalSignals,
       },
       {
@@ -883,10 +838,10 @@ export default async function handler(req, res) {
         confidenceScore: airportInfo.confidenceScore || 55,
         trustLevel: "medium",
         status: "buffer",
-        source: "Airport Intelligence Engine + External Signals",
+        source: "Airport Intelligence Engine + Buffer Governance",
         liveInsight:
           airportEngine?.layers?.airportProfile?.reasoning?.[0] ||
-          "Chegada ao aeroporto calculada com margem conservadora.",
+          "Chegada ao aeroporto calculada com margem governada.",
         reasoning:
           "Inclui margem antes dos passos críticos: check-in, segurança, controlo documental e porta.",
         operationalSignals: operationalSignals.filter((signal) =>
@@ -915,9 +870,7 @@ export default async function handler(req, res) {
         reasoning:
           "Tempo ajustado em função de check-in online e bagagem de porão.",
         operationalSignals: operationalSignals.filter((signal) =>
-          signal.affects?.some((item) =>
-            ["check_in", "bag_drop"].includes(item)
-          )
+          signal.affects?.some((item) => ["check_in", "bag_drop"].includes(item))
         ),
       },
       {
@@ -928,13 +881,13 @@ export default async function handler(req, res) {
         confidenceScore: 60,
         trustLevel: "medium",
         status: "buffer",
-        source: "Airport Intelligence Engine + External Signals",
+        source: "Airport Intelligence Engine",
         buffer: `${securityMinutes} min`,
         liveInsight: fastTrack
           ? "Fast track ativo. Tempo de segurança reduzido."
           : "Segurança é uma das maiores fontes de variabilidade aeroportuária.",
         reasoning:
-          "Tempo estimado com base no perfil do aeroporto, terminal, opção fast track e sinais externos.",
+          "Tempo estimado com base no perfil do aeroporto, terminal e opção fast track.",
         operationalSignals: operationalSignals.filter((signal) =>
           signal.affects?.includes("security")
         ),
@@ -1021,6 +974,7 @@ export default async function handler(req, res) {
       usedLiveFlightData: departureResolution.liveFlightUsed,
       departureSource: departureResolution.source,
       arbitrationSuccess: Boolean(arbitration?.success),
+      bufferGovernanceSuccess: Boolean(bufferGovernance?.success),
       externalSignalsSuccess: Boolean(externalSignalsEngine?.success),
       airportEngineSuccess: Boolean(airportEngine?.success),
       routeEngineSuccess: Boolean(routeEngine?.success),
@@ -1032,6 +986,7 @@ export default async function handler(req, res) {
         eventUrl,
         externalSignalsUrl,
         arbitrationUrl,
+        bufferGovernanceUrl,
       },
     },
   });
