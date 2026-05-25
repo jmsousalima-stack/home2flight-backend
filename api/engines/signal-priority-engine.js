@@ -18,7 +18,7 @@ function severityScore(severity) {
     case "medium":
       return 56;
     case "low":
-      return 24;
+      return 18;
     default:
       return 40;
   }
@@ -74,6 +74,29 @@ function freshnessScore(freshness) {
   }
 }
 
+function isPositiveSignal(signal) {
+  const severity = String(signal.severity || "").toLowerCase();
+
+  if (severity !== "low") return false;
+
+  const title = String(signal.title || "").toLowerCase();
+  const reasoning = String(signal.reasoning || "").toLowerCase();
+
+  return (
+    title.includes("dentro do esperado") ||
+    title.includes("estável") ||
+    title.includes("sem atraso") ||
+    title.includes("disponíveis") ||
+    reasoning.includes("dentro do esperado") ||
+    reasoning.includes("sem atraso") ||
+    reasoning.includes("estável")
+  );
+}
+
+function isRiskSignal(signal) {
+  return !isPositiveSignal(signal);
+}
+
 function operationalDomainWeight(signal) {
   const affects = signal.affects || [];
 
@@ -116,26 +139,47 @@ function operationalDomainWeight(signal) {
 function normalizeSignal(signal) {
   const confidence = number(signal.confidenceScore, 50);
   const buffer = number(signal.extraBufferMinutes, 0);
+  const positive = isPositiveSignal(signal);
 
-  const score =
-    severityScore(signal.severity) * 0.32 +
-    sourceStrength(signal.sourceType) * 0.24 +
-    freshnessScore(signal.freshness) * 0.18 +
+  const riskComponent =
+    severityScore(signal.severity) * 0.34 +
     confidence * 0.18 +
-    clamp(buffer * 3, 0, 100) * 0.08;
+    clamp(buffer * 3, 0, 100) * 0.2 +
+    sourceStrength(signal.sourceType) * 0.14 +
+    freshnessScore(signal.freshness) * 0.14;
+
+  const confidenceComponent =
+    sourceStrength(signal.sourceType) * 0.38 +
+    freshnessScore(signal.freshness) * 0.32 +
+    confidence * 0.3;
 
   const priorityScore = Math.round(
-    clamp(score * operationalDomainWeight(signal), 0, 100)
+    clamp(
+      (positive ? confidenceComponent : riskComponent) *
+        operationalDomainWeight(signal),
+      0,
+      100
+    )
   );
 
   let priority = "low";
 
-  if (priorityScore >= 78) {
-    priority = "critical";
-  } else if (priorityScore >= 62) {
-    priority = "high";
-  } else if (priorityScore >= 42) {
-    priority = "medium";
+  if (!positive) {
+    if (priorityScore >= 78) {
+      priority = "critical";
+    } else if (priorityScore >= 62) {
+      priority = "high";
+    } else if (priorityScore >= 42) {
+      priority = "medium";
+    }
+  } else {
+    if (priorityScore >= 75) {
+      priority = "confidence_high";
+    } else if (priorityScore >= 55) {
+      priority = "confidence_medium";
+    } else {
+      priority = "confidence_low";
+    }
   }
 
   return {
@@ -153,6 +197,8 @@ function normalizeSignal(signal) {
       "Sinal operacional considerado pela Home2Flight.",
     priorityScore,
     priority,
+    positive,
+    riskSignal: !positive,
     raw: signal,
   };
 }
@@ -162,13 +208,14 @@ function detectContradictions(signals) {
 
   const liveRouteStable = signals.find(
     (signal) =>
+      signal.positive &&
       signal.freshness === "live" &&
-      signal.affects.includes("route") &&
-      signal.severity === "low"
+      signal.affects.includes("route")
   );
 
   const profileRouteMedium = signals.find(
     (signal) =>
+      !signal.positive &&
       signal.freshness === "profile" &&
       signal.affects.includes("route") &&
       ["medium", "high"].includes(signal.severity)
@@ -179,10 +226,10 @@ function detectContradictions(signals) {
       type: "live_route_vs_profile_route",
       severity: "low",
       title: "Rota live estável vs. perfil conservador",
-      dominantSignalId: liveRouteStable.id,
-      weakerSignalId: profileRouteMedium.id,
+      confidenceSignalId: liveRouteStable.id,
+      riskSignalId: profileRouteMedium.id,
       resolution:
-        "A fonte live domina a leitura da rota, mas o perfil conservador mantém pequena margem.",
+        "A fonte live aumenta confiança na rota, mas o perfil conservador mantém pequena margem.",
     });
   }
 
@@ -192,6 +239,7 @@ function detectContradictions(signals) {
 
   const routeLive = signals.find(
     (signal) =>
+      signal.positive &&
       signal.freshness === "live" &&
       signal.affects.includes("route")
   );
@@ -201,10 +249,10 @@ function detectContradictions(signals) {
       type: "manual_flight_vs_live_route",
       severity: "medium",
       title: "Voo em fallback manual, mas rota live disponível",
-      dominantSignalId: flightFallback.id,
-      weakerSignalId: routeLive.id,
+      riskSignalId: flightFallback.id,
+      confidenceSignalId: routeLive.id,
       resolution:
-        "A timeline usa rota live, mas mantém confiança limitada por falta de dados reais do voo.",
+        "A rota tem boa leitura live, mas a confiança global fica limitada por falta de dados reais do voo.",
     });
   }
 
@@ -212,50 +260,77 @@ function detectContradictions(signals) {
 }
 
 function classifySignals(signals) {
-  const sorted = [...signals].sort(
+  const riskSignals = signals.filter((signal) => signal.riskSignal);
+  const positiveSignals = signals.filter((signal) => signal.positive);
+
+  const sortedRisk = [...riskSignals].sort(
     (a, b) => b.priorityScore - a.priorityScore
   );
 
-  const dominantSignals = sorted.filter(
+  const sortedPositive = [...positiveSignals].sort(
+    (a, b) => b.priorityScore - a.priorityScore
+  );
+
+  const dominantRiskSignals = sortedRisk.filter(
     (signal) => signal.priority === "critical" || signal.priority === "high"
   );
 
-  const supportingSignals = sorted.filter(
+  const supportingRiskSignals = sortedRisk.filter(
     (signal) => signal.priority === "medium"
   );
 
-  const lowImpactSignals = sorted.filter(
+  const lowImpactRiskSignals = sortedRisk.filter(
     (signal) => signal.priority === "low"
   );
 
-  const ignoredSignals = lowImpactSignals.filter(
+  const confidenceSupportSignals = sortedPositive.filter(
+    (signal) =>
+      signal.priority === "confidence_high" ||
+      signal.priority === "confidence_medium"
+  );
+
+  const ignoredSignals = lowImpactRiskSignals.filter(
     (signal) =>
       signal.extraBufferMinutes === 0 &&
       signal.confidenceScore < 60
   );
 
   return {
-    dominantSignals,
-    supportingSignals,
-    lowImpactSignals,
+    dominantRiskSignals,
+    supportingRiskSignals,
+    lowImpactRiskSignals,
+    confidenceSupportSignals,
     ignoredSignals,
+    positiveSignals: sortedPositive,
   };
 }
 
-function buildSummary({ dominantSignals, supportingSignals }) {
-  if (dominantSignals.length > 0) {
+function buildSummary({
+  dominantRiskSignals,
+  supportingRiskSignals,
+  confidenceSupportSignals,
+}) {
+  if (dominantRiskSignals.length > 0) {
     return {
-      headline: "Existem sinais dominantes na decisão operacional.",
+      headline: "Existem fatores dominantes na decisão operacional.",
       explanation:
-        "A Home2Flight identificou fatores com impacto superior e usou-os como principais justificações da timeline.",
+        "A Home2Flight identificou fatores de risco com impacto superior e usou-os como principais justificações da timeline.",
     };
   }
 
-  if (supportingSignals.length > 0) {
+  if (supportingRiskSignals.length > 0) {
     return {
-      headline: "A decisão é suportada por vários sinais moderados.",
+      headline: "A decisão é suportada por vários fatores moderados.",
       explanation:
-        "Não existe um único fator dominante, mas vários sinais justificam uma postura prudente.",
+        "Não existe um único risco dominante, mas vários sinais justificam uma postura prudente.",
+    };
+  }
+
+  if (confidenceSupportSignals.length > 0) {
+    return {
+      headline: "Sem riscos fortes; existem sinais positivos de confiança.",
+      explanation:
+        "As fontes disponíveis aumentam confiança, mantendo apenas buffers operacionais base.",
     };
   }
 
@@ -266,10 +341,9 @@ function buildSummary({ dominantSignals, supportingSignals }) {
   };
 }
 
-function buildRecommendations(dominantSignals, supportingSignals) {
+function buildRecommendations(dominantRiskSignals, supportingRiskSignals) {
   const recommendations = [];
-
-  const allRelevant = [...dominantSignals, ...supportingSignals];
+  const allRelevant = [...dominantRiskSignals, ...supportingRiskSignals];
 
   if (
     allRelevant.some((signal) =>
@@ -342,47 +416,57 @@ export default async function handler(req, res) {
     const contradictions = detectContradictions(normalizedSignals);
 
     const {
-      dominantSignals,
-      supportingSignals,
-      lowImpactSignals,
+      dominantRiskSignals,
+      supportingRiskSignals,
+      lowImpactRiskSignals,
+      confidenceSupportSignals,
       ignoredSignals,
+      positiveSignals,
     } = classifySignals(normalizedSignals);
 
     const summary = buildSummary({
-      dominantSignals,
-      supportingSignals,
+      dominantRiskSignals,
+      supportingRiskSignals,
+      confidenceSupportSignals,
     });
 
     return res.status(200).json({
       success: true,
       engine: "Home2Flight Signal Priority Engine",
-      version: "1.0.0-foundation",
+      version: "1.1.0-risk-vs-confidence",
       generatedAt: new Date().toISOString(),
 
       summary,
 
-      dominantSignals,
-      supportingSignals,
-      lowImpactSignals,
+      dominantRiskSignals,
+      supportingRiskSignals,
+      lowImpactRiskSignals,
+      confidenceSupportSignals,
+      positiveSignals,
       ignoredSignals,
       contradictions,
 
+      dominantSignals: dominantRiskSignals,
+      supportingSignals: supportingRiskSignals,
+
       recommendations: buildRecommendations(
-        dominantSignals,
-        supportingSignals
+        dominantRiskSignals,
+        supportingRiskSignals
       ),
 
       metadata: {
         inputSignalCount: inputSignals.length,
-        dominantSignalCount: dominantSignals.length,
-        supportingSignalCount: supportingSignals.length,
-        lowImpactSignalCount: lowImpactSignals.length,
+        dominantSignalCount: dominantRiskSignals.length,
+        supportingSignalCount: supportingRiskSignals.length,
+        lowImpactSignalCount: lowImpactRiskSignals.length,
+        confidenceSupportSignalCount: confidenceSupportSignals.length,
+        positiveSignalCount: positiveSignals.length,
         ignoredSignalCount: ignoredSignals.length,
         contradictionCount: contradictions.length,
       },
 
       limitations: [
-        "Primeira versão heurística de priorização de sinais.",
+        "Primeira versão com separação entre risco e suporte de confiança.",
         "Ainda sem aprendizagem histórica baseada em previsão vs realidade.",
         "Ainda sem personalização por aeroporto, companhia e utilizador.",
       ],
