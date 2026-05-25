@@ -382,9 +382,10 @@ function buildInternalOperationalSignals({
   return signals;
 }
 
-function buildReliabilityFromArbitration({
+function buildReliabilityFromEngines({
   arbitration,
   bufferGovernance,
+  signalPriority,
   usedLiveFlightData,
 }) {
   if (!arbitration?.success || !arbitration?.aggregation) {
@@ -408,6 +409,12 @@ function buildReliabilityFromArbitration({
   const governedBuffer =
     bufferGovernance?.summary?.totalBufferMinutes || 0;
 
+  const dominantCount =
+    signalPriority?.metadata?.dominantSignalCount || 0;
+
+  const contradictionCount =
+    signalPriority?.metadata?.contradictionCount || 0;
+
   let score = Math.round(
     82 - riskScore * 0.45 + confidenceScore * 0.22
   );
@@ -415,6 +422,8 @@ function buildReliabilityFromArbitration({
   if (!usedLiveFlightData) score -= 12;
   if (governedBuffer > 70) score -= 8;
   if (governedBuffer > 95) score -= 14;
+  if (dominantCount >= 3) score -= 6;
+  if (contradictionCount > 0) score -= 3;
 
   score = Math.max(0, Math.min(95, score));
 
@@ -422,8 +431,25 @@ function buildReliabilityFromArbitration({
     score,
     trustLevel: score >= 75 ? "high" : score >= 50 ? "medium" : "low",
     readiness: score >= 75 ? "ready" : score >= 50 ? "sensitive" : "fragile",
+
     arbitration: arbitration.aggregation,
+
     bufferGovernance: bufferGovernance?.summary || null,
+
+    signalPriority: {
+      dominantSignalCount: dominantCount,
+      supportingSignalCount:
+        signalPriority?.metadata?.supportingSignalCount || 0,
+      contradictionCount,
+      dominantSignals:
+        signalPriority?.dominantSignals?.slice(0, 3).map((signal) => ({
+          id: signal.id,
+          title: signal.title,
+          priority: signal.priority,
+          priorityScore: signal.priorityScore,
+        })) || [],
+    },
+
     adjustments:
       arbitration.recommendations?.map((item) => ({
         factor: item.type,
@@ -431,6 +457,28 @@ function buildReliabilityFromArbitration({
         reason: item.reasoning,
       })) || [],
   };
+}
+
+function buildLeaveHomeReasoning(signalPriority) {
+  const dominantSignals = signalPriority?.dominantSignals || [];
+
+  if (dominantSignals.length > 0) {
+    return `A decisão foi principalmente influenciada por: ${dominantSignals
+      .slice(0, 3)
+      .map((signal) => signal.title)
+      .join(", ")}.`;
+  }
+
+  const supportingSignals = signalPriority?.supportingSignals || [];
+
+  if (supportingSignals.length > 0) {
+    return `A timeline foi suportada por sinais moderados: ${supportingSignals
+      .slice(0, 3)
+      .map((signal) => signal.title)
+      .join(", ")}.`;
+  }
+
+  return "A timeline foi calculada a partir do perfil operacional e sinais disponíveis.";
 }
 
 export default async function handler(req, res) {
@@ -495,6 +543,9 @@ export default async function handler(req, res) {
   const bufferGovernanceUrl =
     `${BASE_URL}/api/engines/buffer-governance-engine`;
 
+  const signalPriorityUrl =
+    `${BASE_URL}/api/engines/signal-priority-engine`;
+
   const [
     flightEngine,
     airportEngine,
@@ -518,7 +569,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: false,
       engine: "Home2Flight Journey Planning Engine",
-      version: "1.6.0-buffer-governance-integrated",
+      version: "1.7.0-signal-priority-integrated",
       error:
         "Flight departure time unavailable. Enable manual time or use a flight with available live data.",
     });
@@ -530,7 +581,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: false,
       engine: "Home2Flight Journey Planning Engine",
-      version: "1.6.0-buffer-governance-integrated",
+      version: "1.7.0-signal-priority-integrated",
       error: "Invalid departure time.",
     });
   }
@@ -567,26 +618,33 @@ export default async function handler(req, res) {
   const externalSignals = externalSignalsEngine?.signals || [];
   const operationalSignals = [...internalSignals, ...externalSignals];
 
-  const arbitration = await postJson(arbitrationUrl, {
-    signals: operationalSignals,
-  });
+  const [arbitration, bufferGovernance, signalPriority] = await Promise.all([
+    postJson(arbitrationUrl, {
+      signals: operationalSignals,
+    }),
 
-  const bufferGovernance = await postJson(bufferGovernanceUrl, {
-    signals: operationalSignals,
-    profile: {
-      bags,
-      kids,
-      checkedIn,
-      fastTrack,
-      priorityBoarding,
-      flightType,
-      transport,
-    },
-  });
+    postJson(bufferGovernanceUrl, {
+      signals: operationalSignals,
+      profile: {
+        bags,
+        kids,
+        checkedIn,
+        fastTrack,
+        priorityBoarding,
+        flightType,
+        transport,
+      },
+    }),
 
-  const reliability = buildReliabilityFromArbitration({
+    postJson(signalPriorityUrl, {
+      signals: operationalSignals,
+    }),
+  ]);
+
+  const reliability = buildReliabilityFromEngines({
     arbitration,
     bufferGovernance,
+    signalPriority,
     usedLiveFlightData: departureResolution.liveFlightUsed,
   });
 
@@ -684,7 +742,7 @@ export default async function handler(req, res) {
   return res.status(200).json({
     success: true,
     engine: "Home2Flight Journey Planning Engine",
-    version: "1.6.0-buffer-governance-integrated",
+    version: "1.7.0-signal-priority-integrated",
     generatedAt: new Date().toISOString(),
 
     journey: {
@@ -779,6 +837,8 @@ export default async function handler(req, res) {
 
     bufferGovernance,
 
+    signalPriority,
+
     operationalSignals,
 
     externalOperationalSignals: externalSignalsEngine,
@@ -810,6 +870,7 @@ export default async function handler(req, res) {
       externalSignals: externalSignalsEngine?.summary || null,
       arbitration: arbitration?.aggregation || null,
       bufferGovernance: bufferGovernance?.summary || null,
+      signalPriority: signalPriority?.metadata || null,
     },
 
     timeline: [
@@ -822,13 +883,13 @@ export default async function handler(req, res) {
         trustLevel: reliability.trustLevel,
         status: "buffer",
         source:
-          "Journey Planning Engine + Reliability Arbitration + Buffer Governance",
+          "Journey Planning Engine + Reliability Arbitration + Buffer Governance + Signal Priority",
         buffer: `+${routeBuffer + eventBuffer} min`,
         liveInsight:
           "Hora recomendada para iniciar a jornada até ao aeroporto.",
-        reasoning:
-          "Calculado a partir da hora de partida, rota, perfil do passageiro, sinais externos, arbitragem e governação de buffers.",
+        reasoning: buildLeaveHomeReasoning(signalPriority),
         operationalSignals,
+        dominantSignals: signalPriority?.dominantSignals?.slice(0, 3) || [],
       },
       {
         step: "arrive_airport",
@@ -975,6 +1036,7 @@ export default async function handler(req, res) {
       departureSource: departureResolution.source,
       arbitrationSuccess: Boolean(arbitration?.success),
       bufferGovernanceSuccess: Boolean(bufferGovernance?.success),
+      signalPrioritySuccess: Boolean(signalPriority?.success),
       externalSignalsSuccess: Boolean(externalSignalsEngine?.success),
       airportEngineSuccess: Boolean(airportEngine?.success),
       routeEngineSuccess: Boolean(routeEngine?.success),
@@ -987,6 +1049,7 @@ export default async function handler(req, res) {
         externalSignalsUrl,
         arbitrationUrl,
         bufferGovernanceUrl,
+        signalPriorityUrl,
       },
     },
   });
