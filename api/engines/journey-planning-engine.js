@@ -433,7 +433,6 @@ function buildReliabilityFromEngines({
     readiness: score >= 75 ? "ready" : score >= 50 ? "sensitive" : "fragile",
 
     arbitration: arbitration.aggregation,
-
     bufferGovernance: bufferGovernance?.summary || null,
 
     signalPriority: {
@@ -441,8 +440,24 @@ function buildReliabilityFromEngines({
       supportingSignalCount:
         signalPriority?.metadata?.supportingSignalCount || 0,
       contradictionCount,
+      confidenceSupportSignalCount:
+        signalPriority?.metadata?.confidenceSupportSignalCount || 0,
       dominantSignals:
-        signalPriority?.dominantSignals?.slice(0, 3).map((signal) => ({
+        signalPriority?.dominantRiskSignals?.slice(0, 3).map((signal) => ({
+          id: signal.id,
+          title: signal.title,
+          priority: signal.priority,
+          priorityScore: signal.priorityScore,
+        })) || [],
+      supportingSignals:
+        signalPriority?.supportingRiskSignals?.slice(0, 3).map((signal) => ({
+          id: signal.id,
+          title: signal.title,
+          priority: signal.priority,
+          priorityScore: signal.priorityScore,
+        })) || [],
+      confidenceSupportSignals:
+        signalPriority?.confidenceSupportSignals?.slice(0, 2).map((signal) => ({
           id: signal.id,
           title: signal.title,
           priority: signal.priority,
@@ -460,22 +475,44 @@ function buildReliabilityFromEngines({
 }
 
 function buildLeaveHomeReasoning(signalPriority) {
-  const dominantSignals = signalPriority?.dominantSignals || [];
+  const dominantRiskSignals = signalPriority?.dominantRiskSignals || [];
+  const supportingRiskSignals = signalPriority?.supportingRiskSignals || [];
+  const confidenceSupportSignals =
+    signalPriority?.confidenceSupportSignals || [];
 
-  if (dominantSignals.length > 0) {
-    return `A decisão foi principalmente influenciada por: ${dominantSignals
-      .slice(0, 3)
-      .map((signal) => signal.title)
-      .join(", ")}.`;
+  const dominantText = dominantRiskSignals
+    .slice(0, 2)
+    .map((signal) => signal.title)
+    .join(", ");
+
+  const supportingText = supportingRiskSignals
+    .slice(0, 3)
+    .map((signal) => signal.title)
+    .join(", ");
+
+  const confidenceText = confidenceSupportSignals
+    .slice(0, 2)
+    .map((signal) => signal.title)
+    .join(", ");
+
+  if (dominantRiskSignals.length > 0 && supportingRiskSignals.length > 0) {
+    return `A decisão foi principalmente influenciada por: ${dominantText}. Também foram considerados: ${supportingText}.`;
   }
 
-  const supportingSignals = signalPriority?.supportingSignals || [];
+  if (dominantRiskSignals.length > 0) {
+    return `A decisão foi principalmente influenciada por: ${dominantText}.`;
+  }
 
-  if (supportingSignals.length > 0) {
-    return `A timeline foi suportada por sinais moderados: ${supportingSignals
-      .slice(0, 3)
-      .map((signal) => signal.title)
-      .join(", ")}.`;
+  if (supportingRiskSignals.length > 0 && confidenceSupportSignals.length > 0) {
+    return `A timeline foi suportada por fatores moderados: ${supportingText}. Sinais positivos de confiança: ${confidenceText}.`;
+  }
+
+  if (supportingRiskSignals.length > 0) {
+    return `A timeline foi suportada por fatores moderados: ${supportingText}.`;
+  }
+
+  if (confidenceSupportSignals.length > 0) {
+    return `Não existem riscos dominantes. A decisão é suportada por sinais positivos de confiança: ${confidenceText}.`;
   }
 
   return "A timeline foi calculada a partir do perfil operacional e sinais disponíveis.";
@@ -487,7 +524,9 @@ export default async function handler(req, res) {
   const airport = String(req.query.airport || "LIS").toUpperCase();
   const airline = String(req.query.airline || flight.slice(0, 2)).toUpperCase();
   const terminal = String(req.query.terminal || "1");
-  const transport = String(req.query.transport || "public").toLowerCase();
+  const transport = String(
+    req.query.transport || req.query.mode || "public"
+  ).toLowerCase();
   const weather = String(req.query.weather || "normal").toLowerCase();
 
   const bags = parseBoolean(req.query.bags, true);
@@ -569,7 +608,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: false,
       engine: "Home2Flight Journey Planning Engine",
-      version: "1.7.0-signal-priority-integrated",
+      version: "1.8.0-richer-decision-explanation",
       error:
         "Flight departure time unavailable. Enable manual time or use a flight with available live data.",
     });
@@ -581,7 +620,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: false,
       engine: "Home2Flight Journey Planning Engine",
-      version: "1.7.0-signal-priority-integrated",
+      version: "1.8.0-richer-decision-explanation",
       error: "Invalid departure time.",
     });
   }
@@ -742,7 +781,7 @@ export default async function handler(req, res) {
   return res.status(200).json({
     success: true,
     engine: "Home2Flight Journey Planning Engine",
-    version: "1.7.0-signal-priority-integrated",
+    version: "1.8.0-richer-decision-explanation",
     generatedAt: new Date().toISOString(),
 
     journey: {
@@ -834,13 +873,10 @@ export default async function handler(req, res) {
     reliability,
 
     reliabilityArbitration: arbitration,
-
     bufferGovernance,
-
     signalPriority,
 
     operationalSignals,
-
     externalOperationalSignals: externalSignalsEngine,
 
     flight: flightData,
@@ -889,7 +925,11 @@ export default async function handler(req, res) {
           "Hora recomendada para iniciar a jornada até ao aeroporto.",
         reasoning: buildLeaveHomeReasoning(signalPriority),
         operationalSignals,
-        dominantSignals: signalPriority?.dominantSignals?.slice(0, 3) || [],
+        dominantSignals: signalPriority?.dominantRiskSignals?.slice(0, 3) || [],
+        supportingSignals:
+          signalPriority?.supportingRiskSignals?.slice(0, 3) || [],
+        confidenceSupportSignals:
+          signalPriority?.confidenceSupportSignals?.slice(0, 2) || [],
       },
       {
         step: "arrive_airport",
