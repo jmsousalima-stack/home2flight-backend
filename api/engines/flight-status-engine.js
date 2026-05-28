@@ -1,4 +1,4 @@
-// /lbi/engines/flight-status-engine.js
+// /api/engines/flight-status-engine.js
 
 export async function getFlightStatusIntelligence({ flightNumber = "AF1195" } = {}) {
   const normalizedFlightNumber = String(flightNumber || "AF1195").toUpperCase();
