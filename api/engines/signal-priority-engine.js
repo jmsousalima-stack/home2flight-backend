@@ -93,17 +93,10 @@ function isPositiveSignal(signal) {
   );
 }
 
-function isRiskSignal(signal) {
-  return !isPositiveSignal(signal);
-}
-
 function operationalDomainWeight(signal) {
   const affects = signal.affects || [];
 
-  if (
-    affects.includes("flight") ||
-    affects.includes("departure_time")
-  ) {
+  if (affects.includes("flight") || affects.includes("departure_time")) {
     return 1.15;
   }
 
@@ -290,9 +283,7 @@ function classifySignals(signals) {
   );
 
   const ignoredSignals = lowImpactRiskSignals.filter(
-    (signal) =>
-      signal.extraBufferMinutes === 0 &&
-      signal.confidenceScore < 60
+    (signal) => signal.extraBufferMinutes === 0 && signal.confidenceScore < 60
   );
 
   return {
@@ -345,11 +336,7 @@ function buildRecommendations(dominantRiskSignals, supportingRiskSignals) {
   const recommendations = [];
   const allRelevant = [...dominantRiskSignals, ...supportingRiskSignals];
 
-  if (
-    allRelevant.some((signal) =>
-      signal.affects.includes("flight")
-    )
-  ) {
+  if (allRelevant.some((signal) => signal.affects.includes("flight"))) {
     recommendations.push({
       priority: "high",
       type: "flight_validation",
@@ -360,9 +347,10 @@ function buildRecommendations(dominantRiskSignals, supportingRiskSignals) {
   }
 
   if (
-    allRelevant.some((signal) =>
-      signal.affects.includes("route") ||
-      signal.affects.includes("airport_access")
+    allRelevant.some(
+      (signal) =>
+        signal.affects.includes("route") ||
+        signal.affects.includes("airport_access")
     )
   ) {
     recommendations.push({
@@ -375,9 +363,10 @@ function buildRecommendations(dominantRiskSignals, supportingRiskSignals) {
   }
 
   if (
-    allRelevant.some((signal) =>
-      signal.affects.includes("security") ||
-      signal.affects.includes("airport")
+    allRelevant.some(
+      (signal) =>
+        signal.affects.includes("security") ||
+        signal.affects.includes("airport")
     )
   ) {
     recommendations.push({
@@ -389,11 +378,7 @@ function buildRecommendations(dominantRiskSignals, supportingRiskSignals) {
     });
   }
 
-  if (
-    allRelevant.some((signal) =>
-      signal.affects.includes("bag_drop")
-    )
-  ) {
+  if (allRelevant.some((signal) => signal.affects.includes("bag_drop"))) {
     recommendations.push({
       priority: "medium",
       type: "bag_drop_margin",
@@ -406,71 +391,76 @@ function buildRecommendations(dominantRiskSignals, supportingRiskSignals) {
   return recommendations;
 }
 
+export function runSignalPriorityEngine({ signals = [] } = {}) {
+  const inputSignals = Array.isArray(signals) ? signals : [];
+  const normalizedSignals = inputSignals.map(normalizeSignal);
+  const contradictions = detectContradictions(normalizedSignals);
+
+  const {
+    dominantRiskSignals,
+    supportingRiskSignals,
+    lowImpactRiskSignals,
+    confidenceSupportSignals,
+    ignoredSignals,
+    positiveSignals,
+  } = classifySignals(normalizedSignals);
+
+  const summary = buildSummary({
+    dominantRiskSignals,
+    supportingRiskSignals,
+    confidenceSupportSignals,
+  });
+
+  return {
+    success: true,
+    engine: "Home2Flight Signal Priority Engine",
+    version: "1.1.1-clean-risk-vs-confidence",
+    generatedAt: new Date().toISOString(),
+
+    summary,
+
+    dominantRiskSignals,
+    supportingRiskSignals,
+    lowImpactRiskSignals,
+    confidenceSupportSignals,
+    positiveSignals,
+    ignoredSignals,
+    contradictions,
+
+    dominantSignals: dominantRiskSignals,
+    supportingSignals: supportingRiskSignals,
+
+    recommendations: buildRecommendations(
+      dominantRiskSignals,
+      supportingRiskSignals
+    ),
+
+    metadata: {
+      inputSignalCount: inputSignals.length,
+      dominantSignalCount: dominantRiskSignals.length,
+      supportingSignalCount: supportingRiskSignals.length,
+      lowImpactSignalCount: lowImpactRiskSignals.length,
+      confidenceSupportSignalCount: confidenceSupportSignals.length,
+      positiveSignalCount: positiveSignals.length,
+      ignoredSignalCount: ignoredSignals.length,
+      contradictionCount: contradictions.length,
+    },
+
+    limitations: [
+      "Versão limpa com separação entre risco e suporte de confiança.",
+      "Ainda sem aprendizagem histórica baseada em previsão vs realidade.",
+      "Ainda sem personalização por aeroporto, companhia e utilizador.",
+    ],
+  };
+}
+
 export default async function handler(req, res) {
   try {
-    const inputSignals = Array.isArray(req.body?.signals)
-      ? req.body.signals
-      : [];
-
-    const normalizedSignals = inputSignals.map(normalizeSignal);
-    const contradictions = detectContradictions(normalizedSignals);
-
-    const {
-      dominantRiskSignals,
-      supportingRiskSignals,
-      lowImpactRiskSignals,
-      confidenceSupportSignals,
-      ignoredSignals,
-      positiveSignals,
-    } = classifySignals(normalizedSignals);
-
-    const summary = buildSummary({
-      dominantRiskSignals,
-      supportingRiskSignals,
-      confidenceSupportSignals,
+    const result = runSignalPriorityEngine({
+      signals: req.body?.signals || [],
     });
 
-    return res.status(200).json({
-      success: true,
-      engine: "Home2Flight Signal Priority Engine",
-      version: "1.1.0-risk-vs-confidence",
-      generatedAt: new Date().toISOString(),
-
-      summary,
-
-      dominantRiskSignals,
-      supportingRiskSignals,
-      lowImpactRiskSignals,
-      confidenceSupportSignals,
-      positiveSignals,
-      ignoredSignals,
-      contradictions,
-
-      dominantSignals: dominantRiskSignals,
-      supportingSignals: supportingRiskSignals,
-
-      recommendations: buildRecommendations(
-        dominantRiskSignals,
-        supportingRiskSignals
-      ),
-
-      metadata: {
-        inputSignalCount: inputSignals.length,
-        dominantSignalCount: dominantRiskSignals.length,
-        supportingSignalCount: supportingRiskSignals.length,
-        lowImpactSignalCount: lowImpactRiskSignals.length,
-        confidenceSupportSignalCount: confidenceSupportSignals.length,
-        positiveSignalCount: positiveSignals.length,
-        ignoredSignalCount: ignoredSignals.length,
-        contradictionCount: contradictions.length,
-      },
-
-      limitations: [
-        "Primeira versão com separação entre risco e suporte de confiança.",
-        "Ainda sem aprendizagem histórica baseada em previsão vs realidade.",
-        "Ainda sem personalização por aeroporto, companhia e utilizador.",
-      ],
-    });
+    return res.status(200).json(result);
   } catch (error) {
     return res.status(500).json({
       success: false,
