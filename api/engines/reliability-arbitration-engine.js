@@ -1,6 +1,6 @@
 // /api/engines/reliability-arbitration-engine.js
 
-import { runReliabilityArbitration } from "../../../lib/engines/reliability-arbitration-engine.js";
+import { runReliabilityArbitration } from "../../lib/engines/reliability-arbitration-engine.js";
 
 export default async function handler(req, res) {
   try {
