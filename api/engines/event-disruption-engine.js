@@ -1,6 +1,6 @@
 // /api/engines/event-disruption-engine.js
 
-import { getEventDisruptionIntelligence } from "../../../lib/engines/event-disruption-engine.js";
+import { getEventDisruptionIntelligence } from "../../lib/engines/event-disruption-engine.js";
 
 export default async function handler(req, res) {
   try {
