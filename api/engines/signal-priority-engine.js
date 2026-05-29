@@ -1,6 +1,6 @@
 // /api/engines/signal-priority-engine.js
 
-import { runSignalPriorityEngine } from "../../../lib/engines/signal-priority-engine.js";
+import { runSignalPriorityEngine } from "../../lib/engines/signal-priority-engine.js";
 
 export default async function handler(req, res) {
   try {
