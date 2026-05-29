@@ -1,6 +1,6 @@
 // /api/engines/buffer-governance-engine.js
 
-import { runBufferGovernance } from "../../../lib/engines/buffer-governance-engine.js";
+import { runBufferGovernance } from "../../lib/engines/buffer-governance-engine.js";
 
 export default async function handler(req, res) {
   try {
