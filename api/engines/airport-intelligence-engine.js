@@ -1,6 +1,6 @@
 // /api/engines/airport-intelligence-engine.js
 
-import { getAirportOperationalIntelligence } from "../../../lib/engines/airport-intelligence-engine.js";
+import { getAirportOperationalIntelligence } from "../../lib/engines/airport-intelligence-engine.js";
 
 function toBoolean(value, fallback = false) {
   if (value === undefined || value === null) return fallback;
