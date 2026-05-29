@@ -1,6 +1,6 @@
 // /api/engines/flight-status-engine.js
 
-import { getFlightStatusIntelligence } from "../../../lib/engines/flight-status-engine.js";
+import { getFlightStatusIntelligence } from "../../lib/engines/flight-status-engine.js";
 
 export default async function handler(req, res) {
   try {
