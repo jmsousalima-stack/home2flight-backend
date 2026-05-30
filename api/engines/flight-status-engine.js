@@ -5,6 +5,7 @@ import { getFlightStatusIntelligence } from "../../lib/engines/flight-status-eng
 export default async function handler(req, res) {
   try {
     const flightNumber = String(req.query.flight || "AF1195").toUpperCase();
+
     const airline = req.query.airline
       ? String(req.query.airline).toUpperCase()
       : flightNumber.slice(0, 2);
@@ -13,41 +14,44 @@ export default async function handler(req, res) {
       ? String(req.query.airport).toUpperCase()
       : null;
 
-    const terminal = req.query.terminal
-      ? String(req.query.terminal)
-      : null;
+    const terminal = req.query.terminal ? String(req.query.terminal) : null;
+
+    const flightDate =
+      req.query.flightDate ||
+      req.query.date ||
+      new Date().toISOString().slice(0, 10);
+
+    const debugManualFallback =
+      req.query.debugManualFallback === "true" ||
+      req.query.debugManualFallback === true;
 
     const manualDepartureTime =
-      req.query.manualDepartureTime ||
-      req.query.departureTime ||
-      null;
-
-    const forceManualTime =
-      req.query.forceManualTime === "true" ||
-      req.query.forceManualTime === true;
+      debugManualFallback
+        ? req.query.manualDepartureTime || req.query.departureTime || null
+        : null;
 
     const result = await getFlightStatusIntelligence({
       flightNumber,
-      flight: flightNumber,
       airline,
       airport,
       terminal,
+      flightDate,
       manualDepartureTime,
       departureTime: manualDepartureTime,
-      forceManualTime,
+      forceManualTime: debugManualFallback,
     });
 
     return res.status(200).json({
       ...result,
       engine: "Home2Flight Flight Status Engine",
-      version: "0.4.2-wrapper-context-aware",
+      version: "0.4.3-date-first-wrapper",
       generatedAt: new Date().toISOString(),
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
       engine: "Home2Flight Flight Status Engine",
-      version: "0.4.2-wrapper-context-aware",
+      version: "0.4.3-date-first-wrapper",
       error: error?.message || String(error),
     });
   }
