@@ -1,3 +1,5 @@
+// app/page.jsx
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -5,6 +7,15 @@ import { useEffect, useState } from "react";
 import LiveOperationalStatusBar from "../components/LiveOperationalStatusBar";
 import MissionSetupCard from "../components/MissionSetupCard";
 import OperationalBriefingCard from "../components/OperationalBriefingCard";
+
+function getTodayPortugalDate() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Lisbon",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
 
 function formatTime(value) {
   if (!value) return "--:--";
@@ -145,13 +156,16 @@ function getFlightLabel(data) {
 function getNextCriticalStep(data) {
   const timeline = data?.timeline || [];
 
-  const futureStep = timeline.find((step) => {
+  const validTimeline = timeline.filter((step) => step.status !== "skipped");
+
+  const futureStep = validTimeline.find((step) => {
     const minutes = getMinutesUntil(step.recommendedTime);
     return minutes !== null && minutes >= 0;
   });
 
   const fallback =
-    timeline.find((step) => step.step === "checkin_bagdrop") || timeline[0];
+    validTimeline.find((step) => step.step === "checkin_bagdrop") ||
+    validTimeline[0];
 
   const step = futureStep || fallback;
 
@@ -173,11 +187,15 @@ function getNextCriticalStep(data) {
 }
 
 function buildEngineUrl(mission) {
+  const flight = String(mission.flight || "KL1578").toUpperCase();
+  const flightDate = mission.flightDate || getTodayPortugalDate();
+
   const params = new URLSearchParams({
-    flight: mission.flight || "KL1578",
+    flight,
+    flightDate,
     origin: mission.origin || "Lisboa",
-    airport: mission.airport || "LIS",
-    airline: (mission.flight || "KL1578").slice(0, 2),
+    airport: String(mission.airport || "LIS").toUpperCase(),
+    airline: flight.slice(0, 2),
     terminal: mission.terminal || "1",
     transport: mission.transport || "public",
     bags: String(Boolean(mission.bags)),
@@ -185,7 +203,7 @@ function buildEngineUrl(mission) {
     checkedIn: String(Boolean(mission.checkedIn)),
     fastTrack: String(Boolean(mission.fastTrack)),
     priorityBoarding: String(Boolean(mission.priorityBoarding)),
-    flightType: mission.flightType || "passport",
+    flightType: mission.flightType || "auto",
   });
 
   if (mission.useManualTime && mission.departureTime) {
@@ -199,18 +217,19 @@ function buildEngineUrl(mission) {
 export default function Home() {
   const [mission, setMission] = useState({
     flight: "KL1578",
+    flightDate: getTodayPortugalDate(),
     origin: "Lisboa",
     airport: "LIS",
     terminal: "1",
     transport: "public",
     bags: true,
-    kids: true,
+    kids: false,
     checkedIn: false,
     fastTrack: false,
     priorityBoarding: false,
-    flightType: "passport",
-    useManualTime: true,
-    departureTime: "2026-05-20T16:40",
+    flightType: "auto",
+    useManualTime: false,
+    departureTime: "",
   });
 
   const [data, setData] = useState(null);
@@ -240,6 +259,13 @@ export default function Home() {
         );
       }
 
+      if (!json?.decision || !Array.isArray(json?.timeline)) {
+        throw new Error(
+          json?.message ||
+            "Este voo não tem dados suficientes para gerar uma timeline pré-voo."
+        );
+      }
+
       setData(json);
     } catch (err) {
       setError(err.message);
@@ -253,8 +279,12 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const timeline = data?.timeline || [];
+  const timeline = (data?.timeline || []).filter(
+    (step) => step.status !== "skipped"
+  );
+
   const reliabilityScore = data?.reliability?.score ?? 0;
+
   const confidenceScore =
     data?.airportIntelligence?.operationalIntelligence?.confidenceScore ??
     data?.routeIntelligence?.reliability?.confidenceScore ??
@@ -263,6 +293,7 @@ export default function Home() {
   const tone = getOperationalTone(reliabilityScore);
   const phase = data ? getMissionPhase(data) : null;
   const nextStep = data ? getNextCriticalStep(data) : null;
+
   const minutesToLeave = data
     ? getMinutesUntil(data?.decision?.leaveHomeTime)
     : null;
