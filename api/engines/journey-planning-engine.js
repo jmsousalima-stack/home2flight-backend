@@ -1,6 +1,9 @@
 // /api/engines/journey-planning-engine.js
 
-import { runJourneyPlanningEngine } from "../../lib/engines/journey-planning-engine.js";
+import {
+  runJourneyPlanningEngine,
+  parseJourneyPlanningRequest,
+} from "../../lib/engines/journey-planning-engine.js";
 
 function parseBoolean(value, fallback = false) {
   if (value === undefined || value === null || value === "") return fallback;
@@ -10,27 +13,46 @@ function parseBoolean(value, fallback = false) {
 
 export default async function handler(req, res) {
   try {
-    const flight = String(req.query.flight || "KL1578").toUpperCase();
+    const parsedRequest = parseJourneyPlanningRequest(req.query);
+
+    const flight = String(req.query.flight || parsedRequest.flight || "KL1578").toUpperCase();
     const flightDate = String(
-      req.query.flightDate || new Date().toISOString().slice(0, 10)
+      req.query.flightDate ||
+        parsedRequest.flightDate ||
+        new Date().toISOString().slice(0, 10)
     );
 
-    const origin = String(req.query.origin || "Lisboa");
-    const airport = String(req.query.airport || "LIS").toUpperCase();
-    const airline = String(req.query.airline || flight.slice(0, 2)).toUpperCase();
-    const terminal = String(req.query.terminal || "1");
+    const origin = String(req.query.origin || parsedRequest.origin || "Lisboa");
+    const airport = String(req.query.airport || parsedRequest.airport || "LIS").toUpperCase();
+    const destinationAirport = req.query.destinationAirport
+      ? String(req.query.destinationAirport).toUpperCase()
+      : null;
+
+    const airline = String(
+      req.query.airline || parsedRequest.airline || flight.slice(0, 2)
+    ).toUpperCase();
+
+    const terminal = String(req.query.terminal || parsedRequest.terminal || "1");
 
     const transport = String(
-      req.query.transport || req.query.mode || "public"
+      req.query.transport || req.query.mode || parsedRequest.transport || "public"
     ).toLowerCase();
 
-    const weather = String(req.query.weather || "normal").toLowerCase();
+    const weather = String(req.query.weather || parsedRequest.weather || "normal").toLowerCase();
 
-    const result = await runJourneyPlanningEngine({
+    const forceManualTime = parseBoolean(req.query.forceManualTime, false);
+
+    const departureTime =
+      forceManualTime && req.query.departureTime
+        ? String(req.query.departureTime)
+        : "";
+
+    const engineInput = {
       flight,
       flightDate,
       origin,
       airport,
+      destinationAirport,
       airline,
       terminal,
       transport,
@@ -40,39 +62,27 @@ export default async function handler(req, res) {
       checkedIn: parseBoolean(req.query.checkedIn, false),
       fastTrack: parseBoolean(req.query.fastTrack, false),
       priorityBoarding: parseBoolean(req.query.priorityBoarding, false),
-      flightType: String(req.query.flightType || "passport"),
-      forceManualTime: false,
-      departureTime: null,
-    });
+      flightType: String(req.query.flightType || "auto"),
+      forceManualTime,
+      departureTime,
+    };
+
+    const result = await runJourneyPlanningEngine(engineInput);
 
     return res.status(200).json({
       ...result,
-      engine: "Home2Flight Journey Planning Engine",
-      version: "1.9.6-date-first-event-aware-wrapper",
-      generatedAt: new Date().toISOString(),
-      requestMode: "date_first_no_manual_time",
-      wrapperInput: {
-        flight,
-        flightDate,
-        origin,
-        airport,
-        airline,
-        terminal,
-        transport,
-        bags: parseBoolean(req.query.bags, true),
-        kids: parseBoolean(req.query.kids, false),
-        checkedIn: parseBoolean(req.query.checkedIn, false),
-        fastTrack: parseBoolean(req.query.fastTrack, false),
-        priorityBoarding: parseBoolean(req.query.priorityBoarding, false),
-        flightType: String(req.query.flightType || "passport"),
-      },
+      requestMode: forceManualTime
+        ? "date_first_with_manual_fallback_time"
+        : "date_first_no_manual_time",
+      wrapperInput: engineInput,
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
       engine: "Home2Flight Journey Planning Engine",
-      version: "1.9.6-date-first-event-aware-wrapper",
+      version: "api-wrapper-error",
       error: error?.message || String(error),
+      generatedAt: new Date().toISOString(),
     });
   }
 }
