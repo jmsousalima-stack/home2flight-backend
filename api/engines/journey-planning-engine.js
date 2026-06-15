@@ -15,7 +15,10 @@ export default async function handler(req, res) {
   try {
     const parsedRequest = parseJourneyPlanningRequest(req.query);
 
-    const flight = String(req.query.flight || parsedRequest.flight || "KL1578").toUpperCase();
+    const flight = String(
+      req.query.flight || parsedRequest.flight || "KL1578"
+    ).toUpperCase();
+
     const flightDate = String(
       req.query.flightDate ||
         parsedRequest.flightDate ||
@@ -23,24 +26,37 @@ export default async function handler(req, res) {
     );
 
     const origin = String(req.query.origin || parsedRequest.origin || "Lisboa");
-    const airport = String(req.query.airport || parsedRequest.airport || "LIS").toUpperCase();
+
+    const airport = String(
+      req.query.airport || parsedRequest.airport || "LIS"
+    ).toUpperCase();
+
     const destinationAirport = req.query.destinationAirport
       ? String(req.query.destinationAirport).toUpperCase()
-      : null;
+      : parsedRequest.destinationAirport || null;
 
     const airline = String(
       req.query.airline || parsedRequest.airline || flight.slice(0, 2)
     ).toUpperCase();
 
-    const terminal = String(req.query.terminal || parsedRequest.terminal || "1");
+    const terminal = req.query.terminal
+      ? String(req.query.terminal)
+      : parsedRequest.terminal || null;
 
     const transport = String(
       req.query.transport || req.query.mode || parsedRequest.transport || "public"
     ).toLowerCase();
 
-    const weather = String(req.query.weather || parsedRequest.weather || "normal").toLowerCase();
+    const weather = String(
+      req.query.weather || parsedRequest.weather || "normal"
+    ).toLowerCase();
 
     const forceManualTime = parseBoolean(req.query.forceManualTime, false);
+
+    const confirmManualFlight = parseBoolean(
+      req.query.confirmManualFlight,
+      false
+    );
 
     const departureTime =
       forceManualTime && req.query.departureTime
@@ -64,6 +80,7 @@ export default async function handler(req, res) {
       priorityBoarding: parseBoolean(req.query.priorityBoarding, false),
       flightType: String(req.query.flightType || "auto"),
       forceManualTime,
+      confirmManualFlight,
       departureTime,
     };
 
@@ -72,7 +89,9 @@ export default async function handler(req, res) {
     return res.status(200).json({
       ...result,
       requestMode: forceManualTime
-        ? "date_first_with_manual_fallback_time"
+        ? confirmManualFlight
+          ? "date_first_with_confirmed_manual_fallback_time"
+          : "date_first_with_manual_fallback_time"
         : "date_first_no_manual_time",
       wrapperInput: engineInput,
     });
